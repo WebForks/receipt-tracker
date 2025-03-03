@@ -36,7 +36,7 @@ export default function App() {
 
   const takePicture = async () => {
     const photo = await ref.current?.takePictureAsync();
-    setUri(photo?.uri);
+    setUri(photo?.uri ?? null);
   };
 
   const recordVideo = async () => {

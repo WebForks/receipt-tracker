@@ -55,15 +55,6 @@ export default function Index() {
         <Text className="text-xl font-bold mb-4">
           Welcome to your Dashboard!
         </Text>
-        <TouchableOpacity
-          className="bg-red-500 px-6 py-3 rounded-lg"
-          onPress={async () => {
-            await supabase.auth.signOut();
-            router.replace("/signin"); // Navigate to sign in after logging out
-          }}
-        >
-          <Text className="text-black font-semibold">Log Out</Text>
-        </TouchableOpacity>
       </View>
     );
   } else {

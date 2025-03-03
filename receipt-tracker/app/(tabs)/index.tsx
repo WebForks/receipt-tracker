@@ -47,6 +47,7 @@ export default function Index() {
       </View>
     );
   }
+
   if (!isSignedIn) {
     return (
       <View className="flex-1 justify-center items-center bg-white">
@@ -64,6 +65,16 @@ export default function Index() {
   return (
     <View className="flex-1 justify-center items-center bg-white">
       <Text className="text-xl font-bold mb-4">Welcome to your Dashboard!</Text>
+
+      {/* Fixed button in bottom-right corner */}
+      <View className="absolute bottom-6 right-6">
+        <TouchableOpacity
+          onPress={() => router.push("/(sub-home)/camera")}
+          className="bg-green-500 px-4 py-3 rounded-full shadow-lg"
+        >
+          <Text className="text-white font-bold">+</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }

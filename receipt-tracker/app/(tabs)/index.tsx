@@ -47,28 +47,23 @@ export default function Index() {
       </View>
     );
   }
-
-  if (isSignedIn) {
-    // ✅ Authenticated users see the dashboard
-    return (
-      <View className="flex-1 justify-center items-center bg-white">
-        <Text className="text-xl font-bold mb-4">
-          Welcome to your Dashboard!
-        </Text>
-      </View>
-    );
-  } else {
-    // ❌ Not authenticated users see a "Welcome" or landing screen
+  if (!isSignedIn) {
     return (
       <View className="flex-1 justify-center items-center bg-white">
         <Text className="text-xl font-bold mb-6">Welcome to the App!</Text>
         <TouchableOpacity
-          className="bg-blue-500 px-6 py-3 rounded-lg"
           onPress={() => router.replace("/signin")}
+          className="bg-blue-500 px-6 py-3 rounded-lg"
         >
           <Text className="text-white font-semibold">Sign In</Text>
         </TouchableOpacity>
       </View>
     );
   }
+
+  return (
+    <View className="flex-1 justify-center items-center bg-white">
+      <Text className="text-xl font-bold mb-4">Welcome to your Dashboard!</Text>
+    </View>
+  );
 }

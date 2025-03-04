@@ -17,7 +17,6 @@ export default function App() {
   const [uri, setUri] = useState<string | null>(null);
   const [mode, setMode] = useState<CameraMode>("picture");
   const [facing, setFacing] = useState<CameraType>("back");
-  const [recording, setRecording] = useState(false);
 
   if (!permission) {
     return null;
@@ -39,34 +38,20 @@ export default function App() {
     setUri(photo?.uri ?? null);
   };
 
-  const recordVideo = async () => {
-    if (recording) {
-      setRecording(false);
-      ref.current?.stopRecording();
-      return;
-    }
-    setRecording(true);
-    const video = await ref.current?.recordAsync();
-    console.log({ video });
-  };
-
-  const toggleMode = () => {
-    setMode((prev) => (prev === "picture" ? "video" : "picture"));
-  };
-
   const toggleFacing = () => {
     setFacing((prev) => (prev === "back" ? "front" : "back"));
   };
 
   const renderPicture = () => {
     return (
-      <View>
+      <View className="mt-4 space-y-2">
         <Image
           source={{ uri }}
           contentFit="contain"
-          style={{ width: 300, aspectRatio: 1 }}
+          style={{ width: 600, aspectRatio: 1 }}
         />
         <Button onPress={() => setUri(null)} title="Take another picture" />
+        <Button onPress={() => setUri(null)} title="Save" />
       </View>
     );
   };
@@ -82,14 +67,8 @@ export default function App() {
         responsiveOrientationWhenOrientationLocked
       >
         <View style={styles.shutterContainer}>
-          <Pressable onPress={toggleMode}>
-            {mode === "picture" ? (
-              <AntDesign name="picture" size={32} color="white" />
-            ) : (
-              <Feather name="video" size={32} color="white" />
-            )}
-          </Pressable>
-          <Pressable onPress={mode === "picture" ? takePicture : recordVideo}>
+          <AntDesign name="picture" size={32} color="white" />
+          <Pressable onPress={takePicture}>
             {({ pressed }) => (
               <View
                 style={[
@@ -103,7 +82,7 @@ export default function App() {
                   style={[
                     styles.shutterBtnInner,
                     {
-                      backgroundColor: mode === "picture" ? "white" : "red",
+                      backgroundColor: "white",
                     },
                   ]}
                 />
@@ -162,3 +141,5 @@ const styles = StyleSheet.create({
     borderRadius: 50,
   },
 });
+
+/* Can you create a button that says use this picture or something like that with typescript and tailwind and use something like this javascript code in order to run this edge function in my supabase.  It should send the image to my supabase edge function and then console log the supabase edge function response */

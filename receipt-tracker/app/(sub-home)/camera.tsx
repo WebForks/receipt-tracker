@@ -10,7 +10,13 @@ import { Image } from "expo-image";
 import { AntDesign } from "@expo/vector-icons";
 import { Feather } from "@expo/vector-icons";
 import { FontAwesome6 } from "@expo/vector-icons";
+import { createClient } from "@supabase/supabase-js";
+import * as FileSystem from "expo-file-system";
 
+const supabase = createClient(
+  "https://ixspfaizwlkvzozfaiyx.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4c3BmYWl6d2xrdnpvemZhaXl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA4NTk4MzUsImV4cCI6MjA1NjQzNTgzNX0._qA0EzRDyLp1mjH5DbDq4_mQmOwMGbDrzbMeq86hos8"
+);
 export default function App() {
   const [permission, requestPermission] = useCameraPermissions();
   const ref = useRef<CameraView>(null);
@@ -32,7 +38,33 @@ export default function App() {
       </View>
     );
   }
+  const saveImage = async () => {
+    if (!uri) return;
 
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const { data, error } = await supabase.functions.invoke(
+        "extract-info-from-image",
+        {
+          body: { image: `data:image/jpeg;base64,${base64}` },
+        }
+      );
+
+      if (error) {
+        console.error("Failed to invoke function:", error);
+      } else {
+        console.log("Function response:", data);
+      }
+
+      // Clear the image after saving (optional)
+      setUri(null);
+    } catch (err) {
+      console.error("Error saving image:", err);
+    }
+  };
   const takePicture = async () => {
     const photo = await ref.current?.takePictureAsync();
     setUri(photo?.uri ?? null);
@@ -44,14 +76,20 @@ export default function App() {
 
   const renderPicture = () => {
     return (
-      <View className="mt-4 space-y-2">
+      <View className="mt-4 items-center space-y-4">
         <Image
           source={{ uri }}
           contentFit="contain"
           style={{ width: 600, aspectRatio: 1 }}
         />
-        <Button onPress={() => setUri(null)} title="Take another picture" />
-        <Button onPress={() => setUri(null)} title="Save" />
+        <View className="w-full items-center space-y-2">
+          <View className="w-64">
+            <Button onPress={() => setUri(null)} title="Take another picture" />
+          </View>
+          <View className="w-64">
+            <Button onPress={() => setUri(null)} title="Save" />
+          </View>
+        </View>
       </View>
     );
   };

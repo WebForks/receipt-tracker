@@ -10,7 +10,7 @@ pie chart, can sort by catagories or time, list all transactions from the time, 
 
 more
 
-settings, logout, dark and light mode, subscriptions, export, import
+settings, logout, dark and light mode, subscriptions, export, import---\*\*\* add settings to insert openai/google genimi key to use for photos
 
 receipts table - only let user access the ones they have userid in
 

@@ -38,33 +38,6 @@ export default function App() {
       </View>
     );
   }
-  const saveImage = async () => {
-    if (!uri) return;
-
-    try {
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      const { data, error } = await supabase.functions.invoke(
-        "extract-info-from-image",
-        {
-          body: { image: `data:image/jpeg;base64,${base64}` },
-        }
-      );
-
-      if (error) {
-        console.error("Failed to invoke function:", error);
-      } else {
-        console.log("Function response:", data);
-      }
-
-      // Clear the image after saving (optional)
-      setUri(null);
-    } catch (err) {
-      console.error("Error saving image:", err);
-    }
-  };
   const takePicture = async () => {
     const photo = await ref.current?.takePictureAsync();
     setUri(photo?.uri ?? null);

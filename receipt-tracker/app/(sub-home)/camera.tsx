@@ -12,11 +12,10 @@ import { Feather } from "@expo/vector-icons";
 import { FontAwesome6 } from "@expo/vector-icons";
 import { createClient } from "@supabase/supabase-js";
 import * as FileSystem from "expo-file-system";
+import { supabase } from "~/utils/supabase";
+import { nanoid } from "nanoid";
+import { decode } from "base64-arraybuffer";
 
-const supabase = createClient(
-  "https://ixspfaizwlkvzozfaiyx.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4c3BmYWl6d2xrdnpvemZhaXl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA4NTk4MzUsImV4cCI6MjA1NjQzNTgzNX0._qA0EzRDyLp1mjH5DbDq4_mQmOwMGbDrzbMeq86hos8"
-);
 export default function App() {
   const [permission, requestPermission] = useCameraPermissions();
   const ref = useRef<CameraView>(null);
@@ -47,6 +46,103 @@ export default function App() {
     setFacing((prev) => (prev === "back" ? "front" : "back"));
   };
 
+  const handleSave = async () => {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      console.log("Error fetching user:", userError.message);
+      return;
+    }
+    if (!userData?.user) {
+      console.log("No user logged in");
+      return;
+    }
+
+    if (!uri) return;
+    try {
+      const user = userData.user.id; // Get the logged-in user
+
+      const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, "");
+      const fileName = `${user}_${timestamp}.jpg`;
+      const filePath = `receipts/${user}/${fileName}`;
+
+      console.log("File path:", filePath);
+      // Get file info
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      if (!fileInfo.exists) {
+        console.error("File does not exist:", uri);
+        return;
+      }
+
+      // Read file as Base64
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Convert Base64 to ArrayBuffer
+      const arrayBuffer = decode(base64);
+
+      // Upload file using ArrayBuffer
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("receipts")
+        .upload(filePath, arrayBuffer, {
+          contentType: "image/jpeg",
+          upsert: true,
+        });
+      if (uploadError) {
+        console.error("Error uploading image:", uploadError);
+        return;
+      }
+      console.log("Upload successful:", uploadData);
+
+      // Insert or update the receipts database
+      const { data: receiptData, error: receiptError } = await supabase
+        .from("receipts")
+        .insert([
+          {
+            user_id: user,
+            title: "New Receipt", // Placeholder, replace as needed
+            date: new Date().toISOString(),
+            note: "Added via app",
+            total_cost: 0, // Placeholder, replace as needed
+            category: "Misc", // Placeholder
+            subcategory: "General", // Placeholder
+            repeating: false,
+            repeat_frequency: null,
+            account: "", // Left blank for now
+            completed: false,
+            path_to_img: filePath,
+          },
+        ]);
+
+      if (receiptError) {
+        console.error("Error inserting receipt:", receiptError);
+        return;
+      }
+
+      console.log("Receipt added:", receiptData);
+
+      // Check if the completed column is true
+      const { data: checkData, error: checkError } = await supabase
+        .from("receipts")
+        .select("completed")
+        .eq("path_to_img", filePath)
+        .single();
+
+      if (checkError) {
+        console.error("Error checking completion status:", checkError);
+        return;
+      }
+
+      if (checkData.completed) {
+        console.log("Receipt is completed.");
+      } else {
+        console.log("Receipt is not completed yet.");
+      }
+    } catch (err) {
+      console.error("Error saving file:", err);
+    }
+  };
+
   const renderPicture = () => {
     return (
       <View className="mt-4 items-center space-y-4">
@@ -60,7 +156,7 @@ export default function App() {
             <Button onPress={() => setUri(null)} title="Take another picture" />
           </View>
           <View className="w-64">
-            <Button onPress={() => setUri(null)} title="Save" />
+            <Button onPress={handleSave} title="Save" />
           </View>
         </View>
       </View>
@@ -152,5 +248,3 @@ const styles = StyleSheet.create({
     borderRadius: 50,
   },
 });
-
-/* Can you create a button that says use this picture or something like that with typescript and tailwind and use something like this javascript code in order to run this edge function in my supabase.  It should send the image to my supabase edge function and then console log the supabase edge function response */

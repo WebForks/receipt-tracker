@@ -36,12 +36,8 @@ https://supabase.com/dashboard
 
 Need to work on
 
-send image to ai from storage (lookin into database function with pg_http or edge function)
-
 send json from ai to database
 
 display database row to frontend to ask user to confirm
-
-add loading screen while this is processing
 
 add confirmation for user to confirm and set account/category/subcategory

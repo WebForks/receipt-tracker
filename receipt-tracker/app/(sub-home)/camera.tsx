@@ -5,7 +5,14 @@ import {
   useCameraPermissions,
 } from "expo-camera";
 import { useRef, useState } from "react";
-import { Button, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Button,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  ActivityIndicator,
+} from "react-native";
 import { Image } from "expo-image";
 import { AntDesign } from "@expo/vector-icons";
 import { Feather } from "@expo/vector-icons";
@@ -15,18 +22,17 @@ import * as FileSystem from "expo-file-system";
 import { supabase } from "~/utils/supabase";
 import { nanoid } from "nanoid";
 import { decode } from "base64-arraybuffer";
+import { BlurView } from "expo-blur";
 
 export default function App() {
+  const [loading, setLoading] = useState<boolean>(false); // Loading state
   const [permission, requestPermission] = useCameraPermissions();
   const ref = useRef<CameraView>(null);
   const [uri, setUri] = useState<string | null>(null);
   const [mode, setMode] = useState<CameraMode>("picture");
   const [facing, setFacing] = useState<CameraType>("back");
 
-  if (!permission) {
-    return null;
-  }
-
+  if (!permission) return null;
   if (!permission.granted) {
     return (
       <View style={styles.container}>
@@ -37,6 +43,7 @@ export default function App() {
       </View>
     );
   }
+
   const takePicture = async () => {
     const photo = await ref.current?.takePictureAsync();
     setUri(photo?.uri ?? null);
@@ -47,6 +54,7 @@ export default function App() {
   };
 
   const handleSave = async () => {
+    setLoading(true);
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError) {
       console.log("Error fetching user:", userError.message);
@@ -145,28 +153,10 @@ export default function App() {
         console.error("Error inserting receipt:", receiptError);
         return;
       }
-
-      console.log("Receipt added:", receiptData);
-
-      // Check if the completed column is true
-      const { data: checkData, error: checkError } = await supabase
-        .from("receipts")
-        .select("completed")
-        .eq("path_to_img", filePath)
-        .single();
-
-      if (checkError) {
-        console.error("Error checking completion status:", checkError);
-        return;
-      }
-
-      if (checkData.completed) {
-        console.log("Receipt is completed.");
-      } else {
-        console.log("Receipt is not completed yet.");
-      }
     } catch (err) {
       console.error("Error saving file:", err);
+    } finally {
+      setLoading(false); // Stop loading after processing
     }
   };
 
@@ -183,7 +173,7 @@ export default function App() {
             <Button onPress={() => setUri(null)} title="Take another picture" />
           </View>
           <View className="w-64">
-            <Button onPress={handleSave} title="Save" />
+            <Button onPress={handleSave} title="Save" disabled={loading} />
           </View>
         </View>
       </View>
@@ -234,6 +224,18 @@ export default function App() {
   return (
     <View style={styles.container}>
       {uri ? renderPicture() : renderCamera()}
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <BlurView
+            intensity={100}
+            style={StyleSheet.absoluteFill}
+            tint="default"
+          />
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color="blue" />
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -244,6 +246,26 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
+  },
+  loadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingBox: {
+    backgroundColor: "white",
+    padding: 20,
+    borderRadius: 10,
+    // Optionally, add shadow/elevation for a better look:
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   camera: {
     flex: 1,

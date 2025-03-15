@@ -61,8 +61,19 @@ export default function App() {
     try {
       const user = userData.user.id; // Get the logged-in user
 
+      function generateRandomString(length: number): string {
+        const chars =
+          "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        let result = "";
+        for (let i = 0; i < length; i++) {
+          result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+      }
+
       const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, "");
-      const fileName = `${user}_${timestamp}.jpg`;
+      const randomStr = generateRandomString(8);
+      const fileName = `${user}_${timestamp}_${randomStr}.jpg`;
       const filePath = `receipts/${user}/${fileName}`;
 
       console.log("File path:", filePath);
@@ -77,9 +88,11 @@ export default function App() {
       const base64 = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
+      // console.log("Base64:", base64);
 
       // Convert Base64 to ArrayBuffer
       const arrayBuffer = decode(base64);
+      console.log("ArrayBuffer:", arrayBuffer);
 
       // Upload file using ArrayBuffer
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -93,6 +106,10 @@ export default function App() {
         return;
       }
       console.log("Upload successful:", uploadData);
+      const DATA_URL = supabase.storage.from("receipts").getPublicUrl(filePath);
+      console.log("Public URL:", DATA_URL);
+      const imageUrl = DATA_URL.data.publicUrl;
+      console.log("File URL:", imageUrl);
 
       // Insert or update the receipts database
       const { data: receiptData, error: receiptError } = await supabase
@@ -113,6 +130,16 @@ export default function App() {
             path_to_img: filePath,
           },
         ]);
+
+      const { data, error } = await supabase.functions.invoke("image-to-ai", {
+        body: { imageUrl: imageUrl },
+      });
+
+      if (error) {
+        console.error("Error processing image:", error);
+        return;
+      }
+      console.log("AI Response:", data);
 
       if (receiptError) {
         console.error("Error inserting receipt:", receiptError);

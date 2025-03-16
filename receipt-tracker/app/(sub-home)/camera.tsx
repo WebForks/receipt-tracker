@@ -23,6 +23,7 @@ import { supabase } from "~/utils/supabase";
 import { nanoid } from "nanoid";
 import { decode } from "base64-arraybuffer";
 import { BlurView } from "expo-blur";
+import { useRouter } from "expo-router";
 
 export default function App() {
   const [loading, setLoading] = useState<boolean>(false); // Loading state
@@ -31,6 +32,8 @@ export default function App() {
   const [uri, setUri] = useState<string | null>(null);
   const [mode, setMode] = useState<CameraMode>("picture");
   const [facing, setFacing] = useState<CameraType>("back");
+
+  const router = useRouter();
 
   if (!permission) return null;
   if (!permission.granted) {
@@ -148,6 +151,11 @@ export default function App() {
         return;
       }
       console.log("AI Response:", data);
+
+      router.push({
+        pathname: "/(sub-home)/manual",
+        params: { aiResponse: JSON.stringify(data) },
+      });
 
       if (receiptError) {
         console.error("Error inserting receipt:", receiptError);

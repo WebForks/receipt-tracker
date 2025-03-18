@@ -193,7 +193,7 @@ export default function Manual() {
           {!selectedMainCategory ? (
             <ScrollView
               horizontal
-              showsHorizontalScrollIndicator={false}
+              showsHorizontalScrollIndicator={true}
               className="mb-2"
             >
               <View className="flex-row space-x-2">
@@ -204,7 +204,7 @@ export default function Manual() {
                   }}
                   className="px-4 py-2 rounded-full bg-gray-100"
                 >
-                  <Text className="text-gray-500">+ Add new Category</Text>
+                  <Text className="text-gray-500">+ Add new</Text>
                 </TouchableOpacity>
                 {Object.keys(categories).map((mainCategory) => (
                   <TouchableOpacity
@@ -227,8 +227,11 @@ export default function Manual() {
                   <Text className="text-white">{selectedMainCategory}</Text>
                 </TouchableOpacity>
               </View>
+              <Text className="text-sm font-medium text-gray-700 mb-2">
+                Subcategory
+              </Text>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={true}>
                 <View className="flex-row space-x-2">
                   <TouchableOpacity
                     onPress={() => {
@@ -237,7 +240,7 @@ export default function Manual() {
                     }}
                     className="px-4 py-2 rounded-full bg-gray-100"
                   >
-                    <Text className="text-gray-500">+ Add new SubCategory</Text>
+                    <Text className="text-gray-500">+ Add new</Text>
                   </TouchableOpacity>
                   {categories[selectedMainCategory]?.map((subCategory) => (
                     <TouchableOpacity

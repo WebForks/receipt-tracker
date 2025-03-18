@@ -17,7 +17,6 @@ import { Image } from "expo-image";
 import { AntDesign } from "@expo/vector-icons";
 import { Feather } from "@expo/vector-icons";
 import { FontAwesome6 } from "@expo/vector-icons";
-import { createClient } from "@supabase/supabase-js";
 import * as FileSystem from "expo-file-system";
 import { supabase } from "~/utils/supabase";
 import { nanoid } from "nanoid";

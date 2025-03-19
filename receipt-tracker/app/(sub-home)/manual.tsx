@@ -22,7 +22,6 @@ export default function Manual() {
     date: "",
     total_cost: "",
   });
-  const [categories, setCategories] = useState<Record<string, string[]>>({});
   const [selectedMainCategory, setSelectedMainCategory] = useState<
     string | null
   >(null);
@@ -31,7 +30,11 @@ export default function Manual() {
   );
   const [isAddCategoryModalVisible, setIsAddCategoryModalVisible] =
     useState(false);
+  const [isAddSubCategoryModalVisible, setIsAddSubCategoryModalVisible] =
+    useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [newSubCategoryName, setNewSubCategoryName] = useState("");
+  const [categories, setCategories] = useState<Record<string, string[]>>({});
 
   // Get screen dimensions
   const screenHeight = Dimensions.get("window").height;
@@ -130,6 +133,72 @@ export default function Manual() {
     } catch (error) {
       console.error("Error adding category:", error);
       Alert.alert("Error", "Failed to add category");
+    }
+  };
+
+  const handleAddSubCategory = async () => {
+    if (!newSubCategoryName.trim()) {
+      Alert.alert("Error", "Subcategory name cannot be empty");
+      return;
+    }
+
+    if (!selectedMainCategory) {
+      Alert.alert("Error", "No category selected");
+      return;
+    }
+
+    try {
+      // Get current user
+      const { data: userData, error: userError } =
+        await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!userData?.user) throw new Error("No user logged in");
+
+      // Get current categories
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("categories")
+        .eq("user_id", userData.user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      // Check if subcategory already exists
+      if (
+        profileData?.categories[selectedMainCategory]?.includes(
+          newSubCategoryName
+        )
+      ) {
+        Alert.alert("Error", "Subcategory already exists");
+        return;
+      }
+
+      // Create new categories object with updated subcategories
+      const updatedCategories = {
+        ...profileData?.categories,
+        [selectedMainCategory]: [
+          ...(profileData?.categories[selectedMainCategory] || []),
+          newSubCategoryName,
+        ],
+      };
+
+      // Update profiles table
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ categories: updatedCategories })
+        .eq("user_id", userData.user.id);
+
+      if (updateError) throw updateError;
+
+      // Update local state
+      setCategories(updatedCategories);
+      setNewSubCategoryName("");
+      setIsAddSubCategoryModalVisible(false);
+
+      Alert.alert("Success", "Subcategory added successfully");
+    } catch (error) {
+      console.error("Error adding subcategory:", error);
+      Alert.alert("Error", "Failed to add subcategory");
     }
   };
 
@@ -295,10 +364,7 @@ export default function Manual() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View className="flex-row space-x-2">
                   <TouchableOpacity
-                    onPress={() => {
-                      // Handle add new subcategory
-                      console.log("Add new subcategory");
-                    }}
+                    onPress={() => setIsAddSubCategoryModalVisible(true)}
                     className="px-4 py-2 rounded-full bg-gray-100"
                   >
                     <Text className="text-gray-500">+ Add new</Text>
@@ -360,6 +426,44 @@ export default function Manual() {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleAddCategory}
+                className="px-4 py-2 rounded-md bg-blue-500"
+              >
+                <Text className="text-white">Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Subcategory Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isAddSubCategoryModalVisible}
+        onRequestClose={() => setIsAddSubCategoryModalVisible(false)}
+      >
+        <View className="flex-1 justify-center items-center bg-black/50">
+          <View className="bg-white p-6 rounded-lg w-[80%]">
+            <Text className="text-lg font-bold mb-4">Add New Subcategory</Text>
+            <TextInput
+              className="border border-gray-300 rounded-md p-2 mb-4"
+              placeholder="Enter subcategory name"
+              value={newSubCategoryName}
+              onChangeText={setNewSubCategoryName}
+              autoFocus
+            />
+            <View className="flex-row justify-end space-x-2">
+              <TouchableOpacity
+                onPress={() => {
+                  setIsAddSubCategoryModalVisible(false);
+                  setNewSubCategoryName("");
+                }}
+                className="px-4 py-2 rounded-md bg-gray-200"
+              >
+                <Text className="text-gray-700">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleAddSubCategory}
                 className="px-4 py-2 rounded-md bg-blue-500"
               >
                 <Text className="text-white">Add</Text>

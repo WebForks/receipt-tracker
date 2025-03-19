@@ -6,6 +6,8 @@ import {
   TextInput,
   Dimensions,
   TouchableOpacity,
+  Modal,
+  Alert,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import "~/global.css";
@@ -27,6 +29,9 @@ export default function Manual() {
   const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(
     null
   );
+  const [isAddCategoryModalVisible, setIsAddCategoryModalVisible] =
+    useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
 
   // Get screen dimensions
   const screenHeight = Dimensions.get("window").height;
@@ -70,6 +75,63 @@ export default function Manual() {
 
     fetchCategories();
   }, []);
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) {
+      Alert.alert("Error", "Category name cannot be empty");
+      return;
+    }
+
+    try {
+      // Get current user
+      const { data: userData, error: userError } =
+        await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!userData?.user) throw new Error("No user logged in");
+
+      // Get current categories
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("categories")
+        .eq("user_id", userData.user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      // Check if category already exists
+      if (
+        profileData?.categories &&
+        newCategoryName in profileData.categories
+      ) {
+        Alert.alert("Error", "Category already exists");
+        return;
+      }
+
+      // Create new categories object
+      const updatedCategories = {
+        ...profileData?.categories,
+        [newCategoryName]: [], // Initialize with empty subcategories array
+      };
+
+      // Update profiles table
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ categories: updatedCategories })
+        .eq("user_id", userData.user.id);
+
+      if (updateError) throw updateError;
+
+      // Update local state
+      setCategories(updatedCategories);
+      setNewCategoryName("");
+      setIsAddCategoryModalVisible(false);
+
+      Alert.alert("Success", "Category added successfully");
+    } catch (error) {
+      console.error("Error adding category:", error);
+      Alert.alert("Error", "Failed to add category");
+    }
+  };
 
   useEffect(() => {
     if (aiResponse) {
@@ -193,15 +255,12 @@ export default function Manual() {
           {!selectedMainCategory ? (
             <ScrollView
               horizontal
-              showsHorizontalScrollIndicator={true}
+              showsHorizontalScrollIndicator={false}
               className="mb-2"
             >
               <View className="flex-row space-x-2">
                 <TouchableOpacity
-                  onPress={() => {
-                    // Handle add new category
-                    console.log("Add new category");
-                  }}
+                  onPress={() => setIsAddCategoryModalVisible(true)}
                   className="px-4 py-2 rounded-full bg-gray-100"
                 >
                   <Text className="text-gray-500">+ Add new</Text>
@@ -222,16 +281,18 @@ export default function Manual() {
               <View className="mb-2">
                 <TouchableOpacity
                   onPress={() => handleMainCategoryPress(selectedMainCategory)}
-                  className="px-4 py-2 rounded-full bg-blue-500"
+                  className="px-4 py-2 rounded-full bg-blue-500 w-auto"
+                  style={{ alignSelf: "flex-start" }}
                 >
                   <Text className="text-white">{selectedMainCategory}</Text>
                 </TouchableOpacity>
               </View>
+
               <Text className="text-sm font-medium text-gray-700 mb-2">
                 Subcategory
               </Text>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View className="flex-row space-x-2">
                   <TouchableOpacity
                     onPress={() => {
@@ -269,6 +330,44 @@ export default function Manual() {
           )}
         </View>
       </View>
+
+      {/* Add Category Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isAddCategoryModalVisible}
+        onRequestClose={() => setIsAddCategoryModalVisible(false)}
+      >
+        <View className="flex-1 justify-center items-center bg-black/50">
+          <View className="bg-white p-6 rounded-lg w-[80%]">
+            <Text className="text-lg font-bold mb-4">Add New Category</Text>
+            <TextInput
+              className="border border-gray-300 rounded-md p-2 mb-4"
+              placeholder="Enter category name"
+              value={newCategoryName}
+              onChangeText={setNewCategoryName}
+              autoFocus
+            />
+            <View className="flex-row justify-end space-x-2">
+              <TouchableOpacity
+                onPress={() => {
+                  setIsAddCategoryModalVisible(false);
+                  setNewCategoryName("");
+                }}
+                className="px-4 py-2 rounded-md bg-gray-200"
+              >
+                <Text className="text-gray-700">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleAddCategory}
+                className="px-4 py-2 rounded-md bg-blue-500"
+              >
+                <Text className="text-white">Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

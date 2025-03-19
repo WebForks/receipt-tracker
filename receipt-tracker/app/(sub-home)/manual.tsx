@@ -244,6 +244,17 @@ export default function Manual() {
     }
   };
 
+  // New function for handling subcategory press
+  const handleSubCategoryPress = (subCategory: string) => {
+    if (selectedSubCategory === subCategory) {
+      // Unselect the subcategory
+      setSelectedSubCategory(null);
+    } else {
+      // Select the subcategory
+      setSelectedSubCategory(subCategory);
+    }
+  };
+
   return (
     <ScrollView className="flex-1 bg-white p-4">
       <View className="justify-center items-center mb-6">
@@ -255,7 +266,7 @@ export default function Manual() {
           <Text className="text-sm font-medium text-gray-700 mb-1">Title</Text>
           <TextInput
             className="w-full border border-gray-300 rounded-md p-2 text-black bg-white"
-            value={formData.title}
+            value={formData.title + " receipt"}
             onChangeText={(text) =>
               setFormData((prev) => ({ ...prev, title: text }))
             }
@@ -362,35 +373,36 @@ export default function Manual() {
               </Text>
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View className="flex-row space-x-2">
-                  <TouchableOpacity
-                    onPress={() => setIsAddSubCategoryModalVisible(true)}
-                    className="px-4 py-2 rounded-full bg-gray-100"
-                  >
-                    <Text className="text-gray-500">+ Add new</Text>
-                  </TouchableOpacity>
-                  {categories[selectedMainCategory]?.map((subCategory) => (
+                {selectedSubCategory === null ? (
+                  <View className="flex-row space-x-2">
                     <TouchableOpacity
-                      key={subCategory}
-                      onPress={() => setSelectedSubCategory(subCategory)}
-                      className={`px-4 py-2 rounded-full ${
-                        selectedSubCategory === subCategory
-                          ? "bg-green-500"
-                          : "bg-gray-100"
-                      }`}
+                      onPress={() => setIsAddSubCategoryModalVisible(true)}
+                      className="px-4 py-2 rounded-full bg-gray-100"
                     >
-                      <Text
-                        className={`${
-                          selectedSubCategory === subCategory
-                            ? "text-white"
-                            : "text-gray-700"
-                        }`}
-                      >
-                        {subCategory}
-                      </Text>
+                      <Text className="text-gray-500">+ Add new</Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
+                    {categories[selectedMainCategory]?.map((subCategory) => (
+                      <TouchableOpacity
+                        key={subCategory}
+                        onPress={() => handleSubCategoryPress(subCategory)}
+                        className="px-4 py-2 rounded-full bg-gray-100"
+                      >
+                        <Text className="text-gray-700">{subCategory}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  <View className="flex-row space-x-2">
+                    <TouchableOpacity
+                      onPress={() =>
+                        handleSubCategoryPress(selectedSubCategory)
+                      }
+                      className="px-4 py-2 rounded-full bg-green-500"
+                    >
+                      <Text className="text-white">{selectedSubCategory}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </ScrollView>
             </View>
           )}

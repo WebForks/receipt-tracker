@@ -85,7 +85,7 @@ export default function App() {
       const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, "");
       const randomStr = generateRandomString(8);
       const fileName = `${user}_${timestamp}_${randomStr}.jpg`;
-      const filePath = `receipts/${user}/${fileName}`;
+      const filePath = `${user}/${fileName}`;
 
       console.log("File path:", filePath);
       // Get file info

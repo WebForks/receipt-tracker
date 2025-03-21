@@ -51,7 +51,7 @@ export default function Manual() {
     useState(false);
   const [newAccountName, setNewAccountName] = useState("");
 
-  // Add these new states at the top with your other useState declarations:
+  // Repeating states
   const [isRepeating, setIsRepeating] = useState(false);
   const [frequencyNumber, setFrequencyNumber] = useState("1");
   const [frequencyUnit, setFrequencyUnit] = useState("month"); // Options: day, week, month, year
@@ -59,9 +59,9 @@ export default function Manual() {
   const [isUnitModalVisible, setIsUnitModalVisible] = useState(false);
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
 
-  // Get screen dimensions
+  // Dynamic container padding based on screen height
   const screenHeight = Dimensions.get("window").height;
-  const noteFieldHeight = screenHeight * 0.3; // 30% of screen height
+  const containerPadding = screenHeight < 700 ? 10 : 20;
 
   // Fetch categories and accounts from profiles table
   useEffect(() => {
@@ -99,7 +99,6 @@ export default function Manual() {
         console.error("Error in fetchData:", err);
       }
     }
-
     fetchData();
   }, []);
 
@@ -381,279 +380,294 @@ export default function Manual() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-white p-4">
-      <View className="justify-center items-center mb-6">
-        <Text className="text-xl font-bold text-black">Manual Entry</Text>
-      </View>
-
-      <View className="space-y-4">
-        {/* Form Fields */}
-        <View>
-          <Text className="text-sm font-medium text-gray-700 mb-1">Title</Text>
-          <TextInput
-            className="w-full border border-gray-300 rounded-md p-2 text-black bg-white"
-            value={formData.title + " receipt"}
-            onChangeText={(text) =>
-              setFormData((prev) => ({ ...prev, title: text }))
-            }
-            placeholder="Enter title"
-            placeholderTextColor="#9CA3AF"
-          />
+    <View className="flex-1 bg-white">
+      {/* Scrollable form content */}
+      <ScrollView
+        contentContainerStyle={{
+          flexGrow: 1,
+          padding: containerPadding,
+          paddingBottom: 120, // Extra space so content isn't hidden behind the fixed button
+        }}
+      >
+        <View className="justify-center items-center mb-6">
+          <Text className="text-xl font-bold text-black">Manual Entry</Text>
         </View>
 
-        <View>
-          <Text className="text-sm font-medium text-gray-700 mb-1">Note</Text>
-          <View
-            style={{ height: noteFieldHeight }}
-            className="w-full border border-gray-300 rounded-md bg-white"
-          >
-            <ScrollView>
-              <TextInput
-                className="p-2 text-black"
-                value={formData.note}
-                onChangeText={(text) =>
-                  setFormData((prev) => ({ ...prev, note: text }))
-                }
-                placeholder="Enter note"
-                placeholderTextColor="#9CA3AF"
-                multiline
-                textAlignVertical="top"
-                style={{ minHeight: "100%" }}
-              />
-            </ScrollView>
+        <View className="space-y-4 flex-1">
+          {/* Title */}
+          <View>
+            <Text className="text-sm font-medium text-gray-700 mb-1">
+              Title
+            </Text>
+            <TextInput
+              className="w-full border border-gray-300 rounded-md p-2 text-black bg-white"
+              value={formData.title + " receipt"}
+              onChangeText={(text) =>
+                setFormData((prev) => ({ ...prev, title: text }))
+              }
+              placeholder="Enter title"
+              placeholderTextColor="#9CA3AF"
+            />
           </View>
-        </View>
 
-        <View>
-          <Text className="text-sm font-medium text-gray-700 mb-1">Date</Text>
-          <TextInput
-            className="w-full border border-gray-300 rounded-md p-2 text-black bg-white"
-            value={formData.date}
-            onChangeText={(text) =>
-              setFormData((prev) => ({ ...prev, date: text }))
-            }
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor="#9CA3AF"
-          />
-        </View>
-
-        <View>
-          <Text className="text-sm font-medium text-gray-700 mb-1">
-            Total Cost
-          </Text>
-          <TextInput
-            className="w-full border border-gray-300 rounded-md p-2 text-black bg-white"
-            value={formData.total_cost}
-            onChangeText={(text) =>
-              setFormData((prev) => ({ ...prev, total_cost: text }))
-            }
-            placeholder="Enter total cost"
-            placeholderTextColor="#9CA3AF"
-            keyboardType="numeric"
-          />
-        </View>
-
-        {/* Categories Section */}
-        <View>
-          <Text className="text-sm font-medium text-gray-700 mb-2">
-            Category
-          </Text>
-          {!selectedMainCategory ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              className="mb-2"
+          {/* Note (without fixed height) */}
+          <View>
+            <Text className="text-sm font-medium text-gray-700 mb-1">Note</Text>
+            <View
+              className="w-full border border-gray-300 rounded-md bg-white"
+              style={{ minHeight: 100 }}
             >
-              <View className="flex-row space-x-2">
-                <TouchableOpacity
-                  onPress={() => setIsAddCategoryModalVisible(true)}
-                  className="px-4 py-2 rounded-full bg-gray-100"
-                >
-                  <Text className="text-gray-500">+ Add new</Text>
-                </TouchableOpacity>
-                {Object.keys(categories).map((mainCategory) => (
-                  <TouchableOpacity
-                    key={mainCategory}
-                    onPress={() => handleMainCategoryPress(mainCategory)}
-                    className="px-4 py-2 rounded-full bg-gray-200"
-                  >
-                    <Text className="text-gray-700">{mainCategory}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </ScrollView>
-          ) : (
-            <View>
-              <View className="mb-2">
-                <TouchableOpacity
-                  onPress={() => handleMainCategoryPress(selectedMainCategory)}
-                  className="px-4 py-2 rounded-full bg-blue-500 w-auto"
-                  style={{ alignSelf: "flex-start" }}
-                >
-                  <Text className="text-white">{selectedMainCategory}</Text>
-                </TouchableOpacity>
-              </View>
-              <Text className="text-sm font-medium text-gray-700 mb-2">
-                Subcategory
-              </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {selectedSubCategory === null ? (
-                  <View className="flex-row space-x-2">
-                    <TouchableOpacity
-                      onPress={() => setIsAddSubCategoryModalVisible(true)}
-                      className="px-4 py-2 rounded-full bg-gray-100"
-                    >
-                      <Text className="text-gray-500">+ Add new</Text>
-                    </TouchableOpacity>
-                    {categories[selectedMainCategory]?.map((subCategory) => (
-                      <TouchableOpacity
-                        key={subCategory}
-                        onPress={() => handleSubCategoryPress(subCategory)}
-                        className="px-4 py-2 rounded-full bg-gray-100"
-                      >
-                        <Text className="text-gray-700">{subCategory}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                ) : (
-                  <View className="flex-row space-x-2">
-                    <TouchableOpacity
-                      onPress={() =>
-                        handleSubCategoryPress(selectedSubCategory)
-                      }
-                      className="px-4 py-2 rounded-full bg-green-500"
-                    >
-                      <Text className="text-white">{selectedSubCategory}</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
+              <ScrollView>
+                <TextInput
+                  className="p-2 text-black"
+                  value={formData.note}
+                  onChangeText={(text) =>
+                    setFormData((prev) => ({ ...prev, note: text }))
+                  }
+                  placeholder="Enter note"
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  textAlignVertical="top"
+                />
               </ScrollView>
             </View>
-          )}
-        </View>
+          </View>
 
-        {/* Accounts Section */}
-        <View>
-          <Text className="text-sm font-medium text-gray-700 mb-2">
-            Accounts
-          </Text>
-          {!selectedAccount ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              className="mb-2"
-            >
-              <View className="flex-row space-x-2">
-                <TouchableOpacity
-                  onPress={() => setIsAddAccountModalVisible(true)}
-                  className="px-4 py-2 rounded-full bg-gray-100"
-                >
-                  <Text className="text-gray-500">+ Add new</Text>
-                </TouchableOpacity>
-                {Object.keys(accounts).map((account) => (
-                  <TouchableOpacity
-                    key={account}
-                    onPress={() => handleAccountPress(account)}
-                    className="px-4 py-2 rounded-full bg-gray-200"
-                  >
-                    <Text className="text-gray-700">{account}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </ScrollView>
-          ) : (
-            <View className="mb-2" style={{ alignSelf: "flex-start" }}>
-              <TouchableOpacity
-                onPress={() => handleAccountPress(selectedAccount)}
-                className="px-4 py-2 rounded-full bg-blue-500"
-              >
-                <Text className="text-white">{selectedAccount}</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {isDatePickerVisible && (
-          <DateTimePicker
-            value={new Date()}
-            mode="date"
-            display="default"
-            onChange={(event, selectedDate) => {
-              setIsDatePickerVisible(false);
-              if (selectedDate) {
-                // Format date as mm/dd/yyyy
-                const formattedDate = `${
-                  selectedDate.getMonth() + 1
-                }/${selectedDate.getDate()}/${selectedDate.getFullYear()}`;
-                setUntilDate(formattedDate);
+          {/* Date */}
+          <View>
+            <Text className="text-sm font-medium text-gray-700 mb-1">Date</Text>
+            <TextInput
+              className="w-full border border-gray-300 rounded-md p-2 text-black bg-white"
+              value={formData.date}
+              onChangeText={(text) =>
+                setFormData((prev) => ({ ...prev, date: text }))
               }
-            }}
-          />
-        )}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="#9CA3AF"
+            />
+          </View>
 
-        {/* Repeating Section */}
-        <View>
-          <TouchableOpacity
-            onPress={() => setIsRepeating(!isRepeating)}
-            style={{ flexDirection: "row", alignItems: "center" }}
-          >
-            <View
-              style={{
-                width: 20,
-                height: 20,
-                borderWidth: 1,
-                borderColor: "gray",
-                backgroundColor: isRepeating ? "blue" : "white",
-                marginRight: 8,
+          {/* Total Cost */}
+          <View>
+            <Text className="text-sm font-medium text-gray-700 mb-1">
+              Total Cost
+            </Text>
+            <TextInput
+              className="w-full border border-gray-300 rounded-md p-2 text-black bg-white"
+              value={formData.total_cost}
+              onChangeText={(text) =>
+                setFormData((prev) => ({ ...prev, total_cost: text }))
+              }
+              placeholder="Enter total cost"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="numeric"
+            />
+          </View>
+
+          {/* Categories Section */}
+          <View>
+            <Text className="text-sm font-medium text-gray-700 mb-2">
+              Category
+            </Text>
+            {!selectedMainCategory ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                className="mb-2"
+              >
+                <View className="flex-row space-x-2">
+                  <TouchableOpacity
+                    onPress={() => setIsAddCategoryModalVisible(true)}
+                    className="px-4 py-2 rounded-full bg-gray-100"
+                  >
+                    <Text className="text-gray-500">+ Add new</Text>
+                  </TouchableOpacity>
+                  {Object.keys(categories).map((mainCategory) => (
+                    <TouchableOpacity
+                      key={mainCategory}
+                      onPress={() => handleMainCategoryPress(mainCategory)}
+                      className="px-4 py-2 rounded-full bg-gray-200"
+                    >
+                      <Text className="text-gray-700">{mainCategory}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            ) : (
+              <View>
+                <View className="mb-2">
+                  <TouchableOpacity
+                    onPress={() =>
+                      handleMainCategoryPress(selectedMainCategory)
+                    }
+                    className="px-4 py-2 rounded-full bg-blue-500 w-auto"
+                    style={{ alignSelf: "flex-start" }}
+                  >
+                    <Text className="text-white">{selectedMainCategory}</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text className="text-sm font-medium text-gray-700 mb-2">
+                  Subcategory
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {selectedSubCategory === null ? (
+                    <View className="flex-row space-x-2">
+                      <TouchableOpacity
+                        onPress={() => setIsAddSubCategoryModalVisible(true)}
+                        className="px-4 py-2 rounded-full bg-gray-100"
+                      >
+                        <Text className="text-gray-500">+ Add new</Text>
+                      </TouchableOpacity>
+                      {categories[selectedMainCategory]?.map((subCategory) => (
+                        <TouchableOpacity
+                          key={subCategory}
+                          onPress={() => handleSubCategoryPress(subCategory)}
+                          className="px-4 py-2 rounded-full bg-gray-100"
+                        >
+                          <Text className="text-gray-700">{subCategory}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : (
+                    <View className="flex-row space-x-2">
+                      <TouchableOpacity
+                        onPress={() =>
+                          handleSubCategoryPress(selectedSubCategory)
+                        }
+                        className="px-4 py-2 rounded-full bg-green-500"
+                      >
+                        <Text className="text-white">
+                          {selectedSubCategory}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+
+          {/* Accounts Section */}
+          <View>
+            <Text className="text-sm font-medium text-gray-700 mb-2">
+              Accounts
+            </Text>
+            {!selectedAccount ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                className="mb-2"
+              >
+                <View className="flex-row space-x-2">
+                  <TouchableOpacity
+                    onPress={() => setIsAddAccountModalVisible(true)}
+                    className="px-4 py-2 rounded-full bg-gray-100"
+                  >
+                    <Text className="text-gray-500">+ Add new</Text>
+                  </TouchableOpacity>
+                  {Object.keys(accounts).map((account) => (
+                    <TouchableOpacity
+                      key={account}
+                      onPress={() => handleAccountPress(account)}
+                      className="px-4 py-2 rounded-full bg-gray-200"
+                    >
+                      <Text className="text-gray-700">{account}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            ) : (
+              <View className="mb-2" style={{ alignSelf: "flex-start" }}>
+                <TouchableOpacity
+                  onPress={() => handleAccountPress(selectedAccount)}
+                  className="px-4 py-2 rounded-full bg-blue-500"
+                >
+                  <Text className="text-white">{selectedAccount}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {isDatePickerVisible && (
+            <DateTimePicker
+              value={new Date()}
+              mode="date"
+              display="default"
+              onChange={(event, selectedDate) => {
+                setIsDatePickerVisible(false);
+                if (selectedDate) {
+                  // Format date as mm/dd/yyyy
+                  const formattedDate = `${
+                    selectedDate.getMonth() + 1
+                  }/${selectedDate.getDate()}/${selectedDate.getFullYear()}`;
+                  setUntilDate(formattedDate);
+                }
               }}
             />
-            <Text className="text-sm text-gray-700">Repeating</Text>
-          </TouchableOpacity>
-          {isRepeating && (
-            <View className="mt-2">
-              <Text className="text-sm text-gray-700">Repeat every</Text>
-              <View className="flex-row items-center space-x-2">
-                {/* Numeric input for frequency */}
-                <TextInput
-                  value={frequencyNumber}
-                  onChangeText={setFrequencyNumber}
-                  keyboardType="number-pad"
-                  className="border border-gray-300 rounded-md p-2 text-black bg-white w-16"
-                  placeholder="1"
-                />
-                {/* Unit selection */}
-                <TouchableOpacity
-                  onPress={() => setIsUnitModalVisible(true)}
-                  className="px-4 py-2 rounded-md bg-gray-200"
-                >
-                  <Text className="text-gray-700 capitalize">
-                    {frequencyUnit}
-                  </Text>
-                </TouchableOpacity>
-                <Text className="text-sm text-gray-700">until</Text>
-                {/* Until date selection */}
-                <TouchableOpacity
-                  onPress={() => setIsDatePickerVisible(true)}
-                  className="px-4 py-2 rounded-md bg-gray-200"
-                >
-                  <Text className="text-gray-700">{untilDate}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
           )}
-        </View>
 
-        {/* Save Button */}
+          {/* Repeating Section */}
+          <View>
+            <TouchableOpacity
+              onPress={() => setIsRepeating(!isRepeating)}
+              style={{ flexDirection: "row", alignItems: "center" }}
+            >
+              <View
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderWidth: 1,
+                  borderColor: "gray",
+                  backgroundColor: isRepeating ? "blue" : "white",
+                  marginRight: 8,
+                }}
+              />
+              <Text className="text-sm text-gray-700">Repeating</Text>
+            </TouchableOpacity>
+            {isRepeating && (
+              <View className="mt-2">
+                <Text className="text-sm text-gray-700">Repeat every</Text>
+                <View className="flex-row items-center space-x-2">
+                  <TextInput
+                    value={frequencyNumber}
+                    onChangeText={setFrequencyNumber}
+                    keyboardType="number-pad"
+                    className="border border-gray-300 rounded-md p-2 text-black bg-white w-16"
+                    placeholder="1"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setIsUnitModalVisible(true)}
+                    className="px-4 py-2 rounded-md bg-gray-200"
+                  >
+                    <Text className="text-gray-700 capitalize">
+                      {frequencyUnit}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text className="text-sm text-gray-700">until</Text>
+                  <TouchableOpacity
+                    onPress={() => setIsDatePickerVisible(true)}
+                    className="px-4 py-2 rounded-md bg-gray-200"
+                  >
+                    <Text className="text-gray-700">{untilDate}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Fixed Save Button at the bottom */}
+      <View className="absolute bottom-0 left-0 right-0 p-4 bg-white">
         <TouchableOpacity
           onPress={handleSave}
-          className="px-4 py-2 rounded-md bg-green-500 mt-4"
+          className="px-6 py-4 rounded-md bg-green-500"
         >
-          <Text className="text-white text-center">Save</Text>
+          <Text className="text-white text-center text-lg">Save</Text>
         </TouchableOpacity>
       </View>
 
       {/* Modals */}
-      {/* Add Category Modal */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -691,7 +705,6 @@ export default function Manual() {
         </View>
       </Modal>
 
-      {/* Add Subcategory Modal */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -729,7 +742,6 @@ export default function Manual() {
         </View>
       </Modal>
 
-      {/* Add Account Modal */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -799,6 +811,6 @@ export default function Manual() {
           </TouchableOpacity>
         </Modal>
       )}
-    </ScrollView>
+    </View>
   );
 }

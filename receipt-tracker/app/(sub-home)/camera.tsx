@@ -128,19 +128,20 @@ export default function App() {
         .insert([
           {
             user_id: user,
-            title: "New Receipt", // Placeholder, replace as needed
+            title: "New Receipt", // Replace with actual title
             date: new Date().toISOString(),
             note: "Added via app",
-            total_cost: 0, // Placeholder, replace as needed
-            category: "Misc", // Placeholder
-            subcategory: "General", // Placeholder
+            total_cost: 0, // Replace as needed
+            category: "Misc", // Replace as needed
+            subcategory: "General", // Replace as needed
             repeating: false,
             repeat_frequency: null,
-            account: "", // Left blank for now
+            account: "", // Replace as needed
             completed: false,
             path_to_img: filePath,
           },
-        ]);
+        ])
+        .select(); // This returns the inserted row(s)
 
       const { data, error } = await supabase.functions.invoke("image-to-ai", {
         body: { imageUrl: imageUrl },
@@ -152,9 +153,16 @@ export default function App() {
       }
       console.log("AI Response:", data);
 
+      // Parse the id from the returned data
+      const insertedReceiptId = receiptData[0].id;
+      console.log("Inserted Receipt ID:", insertedReceiptId);
+
       router.push({
         pathname: "/(sub-home)/manual",
-        params: { aiResponse: JSON.stringify(data) },
+        params: {
+          aiResponse: JSON.stringify(data),
+          receiptId: insertedReceiptId,
+        },
       });
 
       if (receiptError) {

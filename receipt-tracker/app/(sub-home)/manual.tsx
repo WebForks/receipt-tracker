@@ -12,10 +12,16 @@ import {
 import { useLocalSearchParams } from "expo-router";
 import "~/global.css";
 import { supabase } from "~/utils/supabase";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { useRouter } from "expo-router";
 
 export default function Manual() {
-  const { aiResponse } = useLocalSearchParams();
+  const router = useRouter();
+  // Get route params (assumes receiptId is passed)
+  const { aiResponse, receiptId } = useLocalSearchParams();
   console.log("aiResponse", aiResponse);
+  console.log("receiptId", receiptId);
+
   const [formData, setFormData] = useState({
     title: "",
     note: "",
@@ -44,6 +50,14 @@ export default function Manual() {
   const [isAddAccountModalVisible, setIsAddAccountModalVisible] =
     useState(false);
   const [newAccountName, setNewAccountName] = useState("");
+
+  // Add these new states at the top with your other useState declarations:
+  const [isRepeating, setIsRepeating] = useState(false);
+  const [frequencyNumber, setFrequencyNumber] = useState("1");
+  const [frequencyUnit, setFrequencyUnit] = useState("month"); // Options: day, week, month, year
+  const [untilDate, setUntilDate] = useState("Forever");
+  const [isUnitModalVisible, setIsUnitModalVisible] = useState(false);
+  const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
 
   // Get screen dimensions
   const screenHeight = Dimensions.get("window").height;
@@ -94,24 +108,19 @@ export default function Manual() {
       Alert.alert("Error", "Category name cannot be empty");
       return;
     }
-
     try {
-      // Get current user
       const { data: userData, error: userError } =
         await supabase.auth.getUser();
       if (userError) throw userError;
       if (!userData?.user) throw new Error("No user logged in");
 
-      // Get current categories
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("categories")
         .eq("user_id", userData.user.id)
         .single();
-
       if (profileError) throw profileError;
 
-      // Check if category already exists
       if (
         profileData?.categories &&
         newCategoryName in profileData.categories
@@ -120,25 +129,20 @@ export default function Manual() {
         return;
       }
 
-      // Create new categories object
       const updatedCategories = {
         ...profileData?.categories,
-        [newCategoryName]: [], // Initialize with empty subcategories array
+        [newCategoryName]: [],
       };
 
-      // Update profiles table
       const { error: updateError } = await supabase
         .from("profiles")
         .update({ categories: updatedCategories })
         .eq("user_id", userData.user.id);
-
       if (updateError) throw updateError;
 
-      // Update local state
       setCategories(updatedCategories);
       setNewCategoryName("");
       setIsAddCategoryModalVisible(false);
-
       Alert.alert("Success", "Category added successfully");
     } catch (error) {
       console.error("Error adding category:", error);
@@ -151,29 +155,23 @@ export default function Manual() {
       Alert.alert("Error", "Subcategory name cannot be empty");
       return;
     }
-
     if (!selectedMainCategory) {
       Alert.alert("Error", "No category selected");
       return;
     }
-
     try {
-      // Get current user
       const { data: userData, error: userError } =
         await supabase.auth.getUser();
       if (userError) throw userError;
       if (!userData?.user) throw new Error("No user logged in");
 
-      // Get current categories
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("categories")
         .eq("user_id", userData.user.id)
         .single();
-
       if (profileError) throw profileError;
 
-      // Check if subcategory already exists
       if (
         profileData?.categories[selectedMainCategory]?.includes(
           newSubCategoryName
@@ -183,7 +181,6 @@ export default function Manual() {
         return;
       }
 
-      // Create new categories object with updated subcategories
       const updatedCategories = {
         ...profileData?.categories,
         [selectedMainCategory]: [
@@ -192,19 +189,15 @@ export default function Manual() {
         ],
       };
 
-      // Update profiles table
       const { error: updateError } = await supabase
         .from("profiles")
         .update({ categories: updatedCategories })
         .eq("user_id", userData.user.id);
-
       if (updateError) throw updateError;
 
-      // Update local state
       setCategories(updatedCategories);
       setNewSubCategoryName("");
       setIsAddSubCategoryModalVisible(false);
-
       Alert.alert("Success", "Subcategory added successfully");
     } catch (error) {
       console.error("Error adding subcategory:", error);
@@ -218,24 +211,19 @@ export default function Manual() {
       Alert.alert("Error", "Account name cannot be empty");
       return;
     }
-
     try {
-      // Get current user
       const { data: userData, error: userError } =
         await supabase.auth.getUser();
       if (userError) throw userError;
       if (!userData?.user) throw new Error("No user logged in");
 
-      // Get current accounts
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("accounts-and-cards")
         .eq("user_id", userData.user.id)
         .single();
-
       if (profileError) throw profileError;
 
-      // Check if account already exists
       if (
         profileData?.["accounts-and-cards"] &&
         newAccountName in profileData["accounts-and-cards"]
@@ -244,25 +232,20 @@ export default function Manual() {
         return;
       }
 
-      // Create new accounts object (keeping same structure even if cards are not used)
       const updatedAccounts = {
         ...profileData?.["accounts-and-cards"],
         [newAccountName]: [],
       };
 
-      // Update profiles table
       const { error: updateError } = await supabase
         .from("profiles")
         .update({ "accounts-and-cards": updatedAccounts })
         .eq("user_id", userData.user.id);
-
       if (updateError) throw updateError;
 
-      // Update local state
       setAccounts(updatedAccounts);
       setNewAccountName("");
       setIsAddAccountModalVisible(false);
-
       Alert.alert("Success", "Account added successfully");
     } catch (error) {
       console.error("Error adding account:", error);
@@ -273,10 +256,7 @@ export default function Manual() {
   useEffect(() => {
     if (aiResponse) {
       try {
-        // First parse the outer JSON to get the response string
         const outerParsed = JSON.parse(aiResponse as string);
-
-        // Extract the inner JSON from the markdown code block
         const jsonMatch = outerParsed.response.match(
           /```json\n([\s\S]*?)\n```/
         );
@@ -302,7 +282,6 @@ export default function Manual() {
 
   const handleMainCategoryPress = (category: string) => {
     if (selectedMainCategory === category) {
-      // Unselect if clicking the same category
       setSelectedMainCategory(null);
       setSelectedSubCategory(null);
     } else {
@@ -322,10 +301,82 @@ export default function Manual() {
   // Handler for Accounts
   const handleAccountPress = (account: string) => {
     if (selectedAccount === account) {
-      // Toggle off if already selected
       setSelectedAccount(null);
     } else {
       setSelectedAccount(account);
+    }
+  };
+
+  // Save function to update receipts and profiles
+  const handleSave = async () => {
+    try {
+      // Get current user
+      const { data: userData, error: userError } =
+        await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!userData?.user) throw new Error("No user logged in");
+
+      // Combine the selected date with the current time
+      let updatedDate = new Date(formData.date);
+      const now = new Date();
+      updatedDate.setHours(
+        now.getHours(),
+        now.getMinutes(),
+        now.getSeconds(),
+        now.getMilliseconds()
+      );
+      console.log("updatedDate", updatedDate);
+      console.log("receiptId", receiptId);
+
+      const computedRepeatFrequency = `${frequencyNumber} ${frequencyUnit} until ${untilDate}`;
+
+      // Update receipts database (assuming table "receipts")
+      const { error: receiptsError } = await supabase
+        .from("receipts")
+        .update({
+          title: formData.title,
+          note: formData.note,
+          date: updatedDate.toISOString(),
+          total_cost: Number(formData.total_cost),
+          category: selectedMainCategory || "",
+          subcategory: selectedSubCategory || "",
+          account: selectedAccount,
+          repeating: isRepeating,
+          repeat_frequency: isRepeating ? computedRepeatFrequency : null,
+          completed: true,
+        })
+        .eq("id", receiptId);
+
+      if (receiptsError) throw receiptsError;
+
+      // Now update the profiles table subscriptions (assumed JSON type)
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("subscriptions")
+        .eq("user_id", userData.user.id)
+        .single();
+      if (profileError) throw profileError;
+
+      const existingSubscriptions = profileData?.subscriptions || {};
+      const updatedSubscriptions = {
+        ...existingSubscriptions,
+        [receiptId]: computedRepeatFrequency,
+      };
+
+      const { error: updateProfileError } = await supabase
+        .from("profiles")
+        .update({ subscriptions: updatedSubscriptions })
+        .eq("user_id", userData.user.id);
+      if (updateProfileError) throw updateProfileError;
+
+      router.push({
+        pathname: "/(tabs)",
+      });
+
+      Alert.alert("Success", "Receipt saved successfully");
+    } catch (error) {
+      console.error("Error saving receipt:", error);
+      Alert.alert("Error", "Failed to save receipt");
     }
   };
 
@@ -480,6 +531,7 @@ export default function Manual() {
             </View>
           )}
         </View>
+
         {/* Accounts Section */}
         <View>
           <Text className="text-sm font-medium text-gray-700 mb-2">
@@ -520,6 +572,84 @@ export default function Manual() {
             </View>
           )}
         </View>
+
+        {isDatePickerVisible && (
+          <DateTimePicker
+            value={new Date()}
+            mode="date"
+            display="default"
+            onChange={(event, selectedDate) => {
+              setIsDatePickerVisible(false);
+              if (selectedDate) {
+                // Format date as mm/dd/yyyy
+                const formattedDate = `${
+                  selectedDate.getMonth() + 1
+                }/${selectedDate.getDate()}/${selectedDate.getFullYear()}`;
+                setUntilDate(formattedDate);
+              }
+            }}
+          />
+        )}
+
+        {/* Repeating Section */}
+        <View>
+          <TouchableOpacity
+            onPress={() => setIsRepeating(!isRepeating)}
+            style={{ flexDirection: "row", alignItems: "center" }}
+          >
+            <View
+              style={{
+                width: 20,
+                height: 20,
+                borderWidth: 1,
+                borderColor: "gray",
+                backgroundColor: isRepeating ? "blue" : "white",
+                marginRight: 8,
+              }}
+            />
+            <Text className="text-sm text-gray-700">Repeating</Text>
+          </TouchableOpacity>
+          {isRepeating && (
+            <View className="mt-2">
+              <Text className="text-sm text-gray-700">Repeat every</Text>
+              <View className="flex-row items-center space-x-2">
+                {/* Numeric input for frequency */}
+                <TextInput
+                  value={frequencyNumber}
+                  onChangeText={setFrequencyNumber}
+                  keyboardType="number-pad"
+                  className="border border-gray-300 rounded-md p-2 text-black bg-white w-16"
+                  placeholder="1"
+                />
+                {/* Unit selection */}
+                <TouchableOpacity
+                  onPress={() => setIsUnitModalVisible(true)}
+                  className="px-4 py-2 rounded-md bg-gray-200"
+                >
+                  <Text className="text-gray-700 capitalize">
+                    {frequencyUnit}
+                  </Text>
+                </TouchableOpacity>
+                <Text className="text-sm text-gray-700">until</Text>
+                {/* Until date selection */}
+                <TouchableOpacity
+                  onPress={() => setIsDatePickerVisible(true)}
+                  className="px-4 py-2 rounded-md bg-gray-200"
+                >
+                  <Text className="text-gray-700">{untilDate}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Save Button */}
+        <TouchableOpacity
+          onPress={handleSave}
+          className="px-4 py-2 rounded-md bg-green-500 mt-4"
+        >
+          <Text className="text-white text-center">Save</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Modals */}
@@ -636,6 +766,39 @@ export default function Manual() {
           </View>
         </View>
       </Modal>
+
+      {isUnitModalVisible && (
+        <Modal
+          transparent={true}
+          animationType="fade"
+          visible={isUnitModalVisible}
+        >
+          <TouchableOpacity
+            onPress={() => setIsUnitModalVisible(false)}
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <View className="bg-white p-4 rounded-lg">
+              {["day", "week", "month", "year"].map((unit) => (
+                <TouchableOpacity
+                  key={unit}
+                  onPress={() => {
+                    setFrequencyUnit(unit);
+                    setIsUnitModalVisible(false);
+                  }}
+                  className="p-2"
+                >
+                  <Text className="text-gray-700 capitalize">{unit}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
     </ScrollView>
   );
 }

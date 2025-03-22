@@ -164,7 +164,7 @@ export default function Index() {
           onPress={() => setShowDropUp(!showDropUp)}
           className="bg-green-500 px-4 py-3 rounded-full shadow-lg"
         >
-          <Text className="text-black font-bold font-bold">+</Text>
+          <Text className="text-black font-bold">+</Text>
         </TouchableOpacity>
       </View>
 

@@ -21,6 +21,9 @@ export default function Index() {
   const [hasMore, setHasMore] = useState(true);
   const receiptsLimit = 20;
 
+  // State to control the drop-up menu visibility.
+  const [showDropUp, setShowDropUp] = useState(false);
+
   useEffect(() => {
     checkSession();
 
@@ -66,14 +69,12 @@ export default function Index() {
 
     if (error) {
       console.error("Error fetching receipts:", error);
-    } else {
-      if (data) {
-        // Append the new data to the existing receipts
-        setReceipts((prev) => [...prev, ...data]);
-        // If fewer than the limit were returned, we've reached the end.
-        if (data.length < receiptsLimit) {
-          setHasMore(false);
-        }
+    } else if (data) {
+      // Append the new data to the existing receipts
+      setReceipts((prev) => [...prev, ...data]);
+      // If fewer than the limit were returned, we've reached the end.
+      if (data.length < receiptsLimit) {
+        setHasMore(false);
       }
     }
     setIsReceiptsLoading(false);
@@ -157,15 +158,39 @@ export default function Index() {
         )}
       </ScrollView>
 
-      {/* Fixed button in bottom-right corner */}
+      {/* Fixed plus button in bottom-right corner */}
       <View className="absolute bottom-6 right-6">
         <TouchableOpacity
-          onPress={() => router.push("/(sub-home)/camera")}
+          onPress={() => setShowDropUp(!showDropUp)}
           className="bg-green-500 px-4 py-3 rounded-full shadow-lg"
         >
-          <Text className="text-white font-bold">+</Text>
+          <Text className="text-black font-bold font-bold">+</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Drop-up menu (green and slightly bigger) */}
+      {showDropUp && (
+        <View className="absolute bottom-20 right-6 bg-green-500 border border-green-700 rounded-lg shadow-lg">
+          <TouchableOpacity
+            onPress={() => {
+              setShowDropUp(false);
+              router.push("/(sub-home)/camera");
+            }}
+            className="px-6 py-3"
+          >
+            <Text className="text-black font-bold text-lg">Camera</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              setShowDropUp(false);
+              router.push("/(sub-home)/manual-noai");
+            }}
+            className="px-6 py-3 border-t border-green-700"
+          >
+            <Text className="text-black font-bold text-lg">Manual</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }

@@ -367,15 +367,125 @@ export default function Manual() {
       const computedRepeatFrequency = `${frequencyNumber} ${frequencyUnit} until ${untilDate}`;
       console.log("computedRepeatFrequency", computedRepeatFrequency);
 
+      // Calculate next_run date
+      const nextRunDate = new Date(updatedDate);
+      if (frequencyUnit.toLowerCase() === "month") {
+        nextRunDate.setMonth(nextRunDate.getMonth() + Number(frequencyNumber));
+      } else if (frequencyUnit.toLowerCase() === "year") {
+        nextRunDate.setFullYear(
+          nextRunDate.getFullYear() + Number(frequencyNumber)
+        );
+      } else if (frequencyUnit.toLowerCase() === "week") {
+        nextRunDate.setDate(
+          nextRunDate.getDate() + Number(frequencyNumber) * 7
+        );
+      } else if (frequencyUnit.toLowerCase() === "day") {
+        nextRunDate.setDate(nextRunDate.getDate() + Number(frequencyNumber));
+      }
+
+      // Calculate end_date
+      let endDate;
+      if (untilDate === "Forever") {
+        endDate = new Date("2300-01-01");
+      } else {
+        const [month, day, year] = untilDate.split("/");
+        endDate = new Date(Number(year), Number(month) - 1, Number(day)); // month is 0-based
+        const lastRunTime = new Date(updatedDate);
+        endDate.setHours(lastRunTime.getHours());
+        endDate.setMinutes(lastRunTime.getMinutes());
+        endDate.setSeconds(lastRunTime.getSeconds());
+        endDate.setMilliseconds(lastRunTime.getMilliseconds());
+      }
+
+      // Check if end_date is before next_run
+      if (isRepeating && endDate < nextRunDate) {
+        setIsSaving(false);
+        Alert.alert(
+          "Warning",
+          "The end date is before the next subscription run. This means the subscription will not occur again. Do you want to continue anyway?",
+          [
+            {
+              text: "Go Back",
+              style: "cancel",
+              onPress: () => {
+                // Do nothing, just go back to the form
+              },
+            },
+            {
+              text: "Continue Anyway",
+              onPress: () => {
+                // Continue with saving
+                saveReceiptAndSubscription(
+                  userData.user.id,
+                  updatedDate,
+                  nextRunDate,
+                  endDate
+                );
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      // If we get here, either the end_date is after next_run or it's not a repeating payment
+      await saveReceiptAndSubscription(
+        userData.user.id,
+        updatedDate,
+        nextRunDate,
+        endDate
+      );
+    } catch (error) {
+      console.error("Error saving receipt:", error);
+      Alert.alert("Error", "Failed to save receipt");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Helper function to save receipt and subscription
+  const saveReceiptAndSubscription = async (
+    userId: string,
+    updatedDate: Date,
+    nextRunDate: Date,
+    endDate: Date
+  ) => {
+    try {
+      // Validate and format total cost
+      let formattedTotalCost;
+      try {
+        // Only allow numbers and decimal point
+        const numericValue = formData.total_cost.replace(/[^0-9.]/g, "");
+        // Ensure only one decimal point
+        const parts = numericValue.split(".");
+        const formattedValue =
+          parts.length > 2
+            ? parts[0] + "." + parts.slice(1).join("")
+            : numericValue;
+
+        // Check if it's a valid number
+        const parsedValue = parseFloat(formattedValue);
+        if (isNaN(parsedValue)) {
+          Alert.alert("Error", "Total cost must be a valid number");
+          return;
+        }
+
+        formattedTotalCost = Number(parsedValue.toFixed(2));
+      } catch (error) {
+        console.error("Error formatting total cost:", error);
+        Alert.alert("Error", "Total cost must be a valid number");
+        return;
+      }
+
       // Insert new receipt record into the database including user_id
       const { data: receiptData, error: receiptsError } = await supabase
         .from("receipts")
         .insert({
-          user_id: userData.user.id,
+          user_id: userId,
           title: formData.title,
           note: formData.note,
           date: updatedDate.toISOString(),
-          total_cost: Number(parseFloat(formData.total_cost).toFixed(2)),
+          total_cost: formattedTotalCost,
           category: selectedMainCategory || "",
           subcategory: selectedSubCategory || "",
           account: selectedAccount,
@@ -385,19 +495,19 @@ export default function Manual() {
         .select();
       if (receiptsError) throw receiptsError;
 
-      console.log("untilDate:", untilDate); // Add this line
-      console.log("isRepeating:", isRepeating); // Add this line
+      console.log("untilDate:", untilDate);
+      console.log("isRepeating:", isRepeating);
 
       const { data: subscriptionsData, error: subscriptionsError } =
         await supabase
           .from("subscriptions")
           .insert({
-            user_id: userData.user.id,
+            user_id: userId,
             receipt_id: (
               await supabase
                 .from("receipts")
                 .select("id")
-                .eq("user_id", userData.user.id)
+                .eq("user_id", userId)
                 .order("created_at", { ascending: false })
                 .limit(1)
                 .single()
@@ -418,46 +528,9 @@ export default function Manual() {
               frequencyUnit.toLowerCase() === "day"
                 ? Number(frequencyNumber)
                 : 0,
-            end_date:
-              untilDate === "Forever"
-                ? new Date("2300-01-01").toISOString()
-                : (() => {
-                    const [month, day, year] = untilDate.split("/");
-                    const endDate = new Date(
-                      Number(year),
-                      Number(month) - 1,
-                      Number(day)
-                    ); // month is 0-based
-                    console.log("endDate", endDate);
-                    const lastRunTime = new Date(updatedDate);
-                    endDate.setHours(lastRunTime.getHours());
-                    endDate.setMinutes(lastRunTime.getMinutes());
-                    endDate.setSeconds(lastRunTime.getSeconds());
-                    endDate.setMilliseconds(lastRunTime.getMilliseconds());
-                    return endDate.toISOString();
-                  })(),
+            end_date: endDate.toISOString(),
             last_run: updatedDate.toISOString(),
-            next_run: (() => {
-              const nextRunDate = new Date(updatedDate);
-              if (frequencyUnit.toLowerCase() === "month") {
-                nextRunDate.setMonth(
-                  nextRunDate.getMonth() + Number(frequencyNumber)
-                );
-              } else if (frequencyUnit.toLowerCase() === "year") {
-                nextRunDate.setFullYear(
-                  nextRunDate.getFullYear() + Number(frequencyNumber)
-                );
-              } else if (frequencyUnit.toLowerCase() === "week") {
-                nextRunDate.setDate(
-                  nextRunDate.getDate() + Number(frequencyNumber) * 7
-                );
-              } else if (frequencyUnit.toLowerCase() === "day") {
-                nextRunDate.setDate(
-                  nextRunDate.getDate() + Number(frequencyNumber)
-                );
-              }
-              return nextRunDate.toISOString();
-            })(),
+            next_run: nextRunDate.toISOString(),
             active: true,
           })
           .select();
@@ -547,7 +620,6 @@ export default function Manual() {
               <Text className="text-black">
                 {formData.date
                   ? (() => {
-                      console.log("Displaying date:", formData.date);
                       try {
                         // Parse the date string manually to avoid timezone issues
                         const [year, month, day] = formData.date
@@ -582,21 +654,11 @@ export default function Manual() {
                 className="flex-1 p-2 text-black"
                 value={formData.total_cost}
                 onChangeText={(text) => {
-                  // Only allow numbers and decimal point
-                  const formattedText = text.replace(/[^0-9.]/g, "");
-                  // Ensure only one decimal point
-                  const parts = formattedText.split(".");
-                  if (parts.length > 2) {
-                    setFormData((prev) => ({
-                      ...prev,
-                      total_cost: parts[0] + "." + parts.slice(1).join(""),
-                    }));
-                  } else {
-                    setFormData((prev) => ({
-                      ...prev,
-                      total_cost: formattedText,
-                    }));
-                  }
+                  // Allow any input, we'll validate later
+                  setFormData((prev) => ({
+                    ...prev,
+                    total_cost: text,
+                  }));
                 }}
                 placeholder="0.00"
                 placeholderTextColor="#9CA3AF"

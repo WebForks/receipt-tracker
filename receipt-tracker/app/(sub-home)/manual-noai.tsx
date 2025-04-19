@@ -8,12 +8,21 @@ import {
   TouchableOpacity,
   Modal,
   Alert,
+  Platform,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import "~/global.css";
 import { supabase } from "~/utils/supabase";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+
+// Define types for profile data
+interface ProfileData {
+  categories?: Record<string, string[]>;
+  "accounts-and-cards"?: Record<string, string[]>;
+  [key: string]: any;
+}
 
 export default function Manual() {
   const router = useRouter();
@@ -65,6 +74,9 @@ export default function Manual() {
   const screenHeight = Dimensions.get("window").height;
   const containerPadding = screenHeight < 700 ? 10 : 20;
 
+  // Add this state
+  const [isSaving, setIsSaving] = useState(false);
+
   // Fetch categories and accounts from profiles table
   useEffect(() => {
     async function fetchData() {
@@ -93,7 +105,6 @@ export default function Manual() {
           return;
         }
         console.log("profileData", profileData);
-
         // Set categories and accounts if they exist, otherwise use empty objects
         setCategories(profileData?.categories || {});
         setAccounts(profileData?.["accounts-and-cards"] || {});
@@ -287,6 +298,27 @@ export default function Manual() {
   // Save function to insert a new receipt based on user input
   const handleSave = async () => {
     try {
+      setIsSaving(true);
+
+      // Validate required fields
+      if (!formData.title.trim()) {
+        Alert.alert("Error", "Title is required");
+        setIsSaving(false);
+        return;
+      }
+
+      if (!formData.date) {
+        Alert.alert("Error", "Date is required");
+        setIsSaving(false);
+        return;
+      }
+
+      if (!formData.total_cost.trim()) {
+        Alert.alert("Error", "Total cost is required");
+        setIsSaving(false);
+        return;
+      }
+
       // Get current user
       const { data: userData, error: userError } =
         await supabase.auth.getUser();
@@ -413,6 +445,8 @@ export default function Manual() {
     } catch (error) {
       console.error("Error saving receipt:", error);
       Alert.alert("Error", "Failed to save receipt");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -434,7 +468,7 @@ export default function Manual() {
           {/* Title */}
           <View>
             <Text className="text-sm font-medium text-gray-700 mb-1">
-              Title
+              Title <Text className="text-red-500">*</Text>
             </Text>
             <TextInput
               className="w-full border border-gray-300 rounded-md p-2 text-black bg-white"
@@ -472,32 +506,59 @@ export default function Manual() {
 
           {/* Date Field: Pop-up Date Picker */}
           <View>
-            <Text className="text-sm font-medium text-gray-700 mb-1">Date</Text>
+            <Text className="text-sm font-medium text-gray-700 mb-1">
+              Date <Text className="text-red-500">*</Text>
+            </Text>
             <TouchableOpacity
               onPress={() => setIsReceiptDatePickerVisible(true)}
-              className="w-full border border-gray-300 rounded-md p-2 bg-white"
+              className="w-full border border-gray-300 rounded-md p-2 bg-white flex-row justify-between items-center"
             >
               <Text className="text-black">
-                {formData.date ? formData.date : "Select Date"}
+                {formData.date
+                  ? new Date(formData.date).toLocaleDateString("en-US", {
+                      weekday: "short",
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })
+                  : "Select Date"}
               </Text>
+              <Text className="text-gray-500">📅</Text>
             </TouchableOpacity>
           </View>
 
           {/* Total Cost */}
           <View>
             <Text className="text-sm font-medium text-gray-700 mb-1">
-              Total Cost
+              Total Cost <Text className="text-red-500">*</Text>
             </Text>
-            <TextInput
-              className="w-full border border-gray-300 rounded-md p-2 text-black bg-white"
-              value={formData.total_cost}
-              onChangeText={(text) =>
-                setFormData((prev) => ({ ...prev, total_cost: text }))
-              }
-              placeholder="Enter total cost"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="numeric"
-            />
+            <View className="flex-row items-center border border-gray-300 rounded-md bg-white">
+              <Text className="text-black p-2">$</Text>
+              <TextInput
+                className="flex-1 p-2 text-black"
+                value={formData.total_cost}
+                onChangeText={(text) => {
+                  // Only allow numbers and decimal point
+                  const formattedText = text.replace(/[^0-9.]/g, "");
+                  // Ensure only one decimal point
+                  const parts = formattedText.split(".");
+                  if (parts.length > 2) {
+                    setFormData((prev) => ({
+                      ...prev,
+                      total_cost: parts[0] + "." + parts.slice(1).join(""),
+                    }));
+                  } else {
+                    setFormData((prev) => ({
+                      ...prev,
+                      total_cost: formattedText,
+                    }));
+                  }
+                }}
+                placeholder="0.00"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+              />
+            </View>
           </View>
 
           {/* Categories Section */}
@@ -514,15 +575,15 @@ export default function Manual() {
                 <View className="flex-row space-x-2">
                   <TouchableOpacity
                     onPress={() => setIsAddCategoryModalVisible(true)}
-                    className="px-4 py-2 rounded-full bg-gray-100"
+                    className="px-4 py-2 rounded-full bg-blue-100 border border-blue-300"
                   >
-                    <Text className="text-gray-500">+ Add new</Text>
+                    <Text className="text-blue-600">+ Add new</Text>
                   </TouchableOpacity>
                   {Object.keys(categories).map((mainCategory) => (
                     <TouchableOpacity
                       key={mainCategory}
                       onPress={() => handleMainCategoryPress(mainCategory)}
-                      className="px-4 py-2 rounded-full bg-gray-200"
+                      className="px-4 py-2 rounded-full bg-gray-200 border border-gray-300"
                     >
                       <Text className="text-gray-700">{mainCategory}</Text>
                     </TouchableOpacity>
@@ -536,10 +597,13 @@ export default function Manual() {
                     onPress={() =>
                       handleMainCategoryPress(selectedMainCategory)
                     }
-                    className="px-4 py-2 rounded-full bg-blue-500 w-auto"
+                    className="px-4 py-2 rounded-full bg-blue-500 w-auto flex-row items-center"
                     style={{ alignSelf: "flex-start" }}
                   >
-                    <Text className="text-white">{selectedMainCategory}</Text>
+                    <Text className="text-white mr-2">
+                      {selectedMainCategory}
+                    </Text>
+                    <Text className="text-white">✕</Text>
                   </TouchableOpacity>
                 </View>
                 <Text className="text-sm font-medium text-gray-700 mb-2">
@@ -550,15 +614,15 @@ export default function Manual() {
                     <View className="flex-row space-x-2">
                       <TouchableOpacity
                         onPress={() => setIsAddSubCategoryModalVisible(true)}
-                        className="px-4 py-2 rounded-full bg-gray-100"
+                        className="px-4 py-2 rounded-full bg-green-100 border border-green-300"
                       >
-                        <Text className="text-gray-500">+ Add new</Text>
+                        <Text className="text-green-600">+ Add new</Text>
                       </TouchableOpacity>
                       {categories[selectedMainCategory]?.map((subCategory) => (
                         <TouchableOpacity
                           key={subCategory}
                           onPress={() => handleSubCategoryPress(subCategory)}
-                          className="px-4 py-2 rounded-full bg-gray-100"
+                          className="px-4 py-2 rounded-full bg-gray-100 border border-gray-300"
                         >
                           <Text className="text-gray-700">{subCategory}</Text>
                         </TouchableOpacity>
@@ -570,11 +634,12 @@ export default function Manual() {
                         onPress={() =>
                           handleSubCategoryPress(selectedSubCategory)
                         }
-                        className="px-4 py-2 rounded-full bg-green-500"
+                        className="px-4 py-2 rounded-full bg-green-500 flex-row items-center"
                       >
-                        <Text className="text-white">
+                        <Text className="text-white mr-2">
                           {selectedSubCategory}
                         </Text>
+                        <Text className="text-white">✕</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -666,46 +731,61 @@ export default function Manual() {
             <TouchableOpacity
               onPress={() => setIsRepeating(!isRepeating)}
               style={{ flexDirection: "row", alignItems: "center" }}
+              className="mb-2"
             >
               <View
                 style={{
-                  width: 20,
-                  height: 20,
-                  borderWidth: 1,
-                  borderColor: "gray",
-                  backgroundColor: isRepeating ? "blue" : "white",
+                  width: 24,
+                  height: 24,
+                  borderWidth: 2,
+                  borderColor: isRepeating ? "#3B82F6" : "gray",
+                  backgroundColor: isRepeating ? "#3B82F6" : "white",
                   marginRight: 8,
+                  borderRadius: 4,
+                  justifyContent: "center",
+                  alignItems: "center",
                 }}
-              />
-              <Text className="text-sm text-gray-700">Repeating</Text>
+              >
+                {isRepeating && <Text className="text-white">✓</Text>}
+              </View>
+              <Text className="text-sm font-medium text-gray-700">
+                Repeating Payment
+              </Text>
             </TouchableOpacity>
+
             {isRepeating && (
-              <View className="mt-2">
-                <Text className="text-sm text-gray-700">Repeat every</Text>
-                <View className="flex-row items-center space-x-2">
+              <View className="mt-2 p-3 bg-blue-50 rounded-md border border-blue-200">
+                <Text className="text-sm font-medium text-blue-800 mb-2">
+                  Repeat every
+                </Text>
+                <View className="flex-row items-center space-x-2 mb-3">
                   <TextInput
                     value={frequencyNumber}
                     onChangeText={setFrequencyNumber}
                     keyboardType="number-pad"
-                    className="border border-gray-300 rounded-md p-2 text-black bg-white w-16"
+                    className="border border-gray-300 rounded-md p-2 text-black bg-white w-16 text-center"
                     placeholder="1"
                   />
                   <TouchableOpacity
                     onPress={() => setIsUnitModalVisible(true)}
-                    className="px-4 py-2 rounded-md bg-gray-200"
+                    className="px-4 py-2 rounded-md bg-white border border-gray-300"
                   >
                     <Text className="text-gray-700 capitalize">
                       {frequencyUnit}
                     </Text>
                   </TouchableOpacity>
-                  <Text className="text-sm text-gray-700">until</Text>
-                  <TouchableOpacity
-                    onPress={() => setIsDatePickerVisible(true)}
-                    className="px-4 py-2 rounded-md bg-gray-200"
-                  >
-                    <Text className="text-gray-700">{untilDate}</Text>
-                  </TouchableOpacity>
                 </View>
+
+                <Text className="text-sm font-medium text-blue-800 mb-2">
+                  Until
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setIsDatePickerVisible(true)}
+                  className="px-4 py-2 rounded-md bg-white border border-gray-300 flex-row justify-between items-center"
+                >
+                  <Text className="text-gray-700">{untilDate}</Text>
+                  <Text className="text-gray-500">📅</Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -716,9 +796,19 @@ export default function Manual() {
       <View className="absolute bottom-0 left-0 right-0 p-4 bg-white">
         <TouchableOpacity
           onPress={handleSave}
-          className="px-6 py-4 rounded-md bg-green-500"
+          disabled={isSaving}
+          className={`px-6 py-4 rounded-md ${
+            isSaving ? "bg-gray-400" : "bg-green-500"
+          }`}
         >
-          <Text className="text-white text-center text-lg">Save</Text>
+          {isSaving ? (
+            <View className="flex-row justify-center items-center">
+              <Text className="text-white mr-2">Saving...</Text>
+              <View className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></View>
+            </View>
+          ) : (
+            <Text className="text-white text-center text-lg">Save</Text>
+          )}
         </TouchableOpacity>
       </View>
 

@@ -135,13 +135,20 @@ export default function App() {
             category: "Misc", // Replace as needed
             subcategory: "General", // Replace as needed
             repeating: false,
-            repeat_frequency: null,
             account: "", // Replace as needed
             completed: false,
             path_to_img: filePath,
+            subscription_id: null,
           },
         ])
         .select(); // This returns the inserted row(s)
+
+      if (receiptError) {
+        console.error("Error inserting receipt:", receiptError);
+        return;
+      }
+
+      console.log("Receipt Data:", receiptData);
 
       const { data, error } = await supabase.functions.invoke("image-to-ai", {
         body: { imageUrl: imageUrl },
@@ -154,6 +161,10 @@ export default function App() {
       console.log("AI Response:", data);
 
       // Parse the id from the returned data
+      if (!receiptData || receiptData.length === 0) {
+        console.error("No receipt data returned");
+        return;
+      }
       const insertedReceiptId = receiptData[0].id;
       console.log("Inserted Receipt ID:", insertedReceiptId);
 
@@ -164,11 +175,6 @@ export default function App() {
           receiptId: insertedReceiptId,
         },
       });
-
-      if (receiptError) {
-        console.error("Error inserting receipt:", receiptError);
-        return;
-      }
     } catch (err) {
       console.error("Error saving file:", err);
     } finally {
@@ -239,6 +245,12 @@ export default function App() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <AntDesign name="arrowleft" size={24} color="black" />
+        </Pressable>
+        <Text style={styles.headerTitle}>Camera Entry</Text>
+      </View>
       {uri ? renderPicture() : renderCamera()}
       {loading && (
         <View style={styles.loadingOverlay}>
@@ -262,6 +274,26 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
+  },
+  header: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 60,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    zIndex: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginLeft: 8,
   },
   loadingOverlay: {
     position: "absolute",

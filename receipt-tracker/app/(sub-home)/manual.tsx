@@ -8,12 +8,20 @@ import {
   TouchableOpacity,
   Modal,
   Alert,
+  Pressable,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import "~/global.css";
 import { supabase } from "~/utils/supabase";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
+import { AntDesign } from "@expo/vector-icons";
+
+interface ProfileData {
+  categories?: Record<string, string[]>;
+  "accounts-and-cards"?: Record<string, string[]>;
+  [key: string]: any;
+}
 
 export default function Manual() {
   const router = useRouter();
@@ -28,6 +36,10 @@ export default function Manual() {
     date: "",
     total_cost: "",
   });
+
+  // New state to control the receipt date picker
+  const [isReceiptDatePickerVisible, setIsReceiptDatePickerVisible] =
+    useState(false);
 
   // Categories state (existing)
   const [selectedMainCategory, setSelectedMainCategory] = useState<
@@ -63,6 +75,14 @@ export default function Manual() {
   const screenHeight = Dimensions.get("window").height;
   const containerPadding = screenHeight < 700 ? 10 : 20;
 
+  // Add this state
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Add useEffect to monitor formData.date changes
+  useEffect(() => {
+    console.log("formData.date changed:", formData.date);
+  }, [formData.date]);
+
   // Fetch categories and accounts from profiles table
   useEffect(() => {
     async function fetchData() {
@@ -91,16 +111,52 @@ export default function Manual() {
           return;
         }
         console.log("profileData", profileData);
-
         // Set categories and accounts if they exist, otherwise use empty objects
-        setCategories(profileData?.categories || {});
-        setAccounts(profileData?.["accounts-and-cards"] || {});
+        if ("categories" in profileData) {
+          setCategories(profileData.categories as Record<string, string[]>);
+        } else {
+          setCategories({});
+        }
+        if ("accounts-and-cards" in profileData) {
+          setAccounts(
+            profileData["accounts-and-cards"] as Record<string, string[]>
+          );
+        } else {
+          setAccounts({});
+        }
       } catch (err) {
         console.error("Error in fetchData:", err);
       }
     }
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (aiResponse) {
+      try {
+        const outerParsed = JSON.parse(aiResponse as string);
+        const jsonMatch = outerParsed.response.match(
+          /```json\n([\s\S]*?)\n```/
+        );
+        if (jsonMatch && jsonMatch[1]) {
+          const parsedData = JSON.parse(jsonMatch[1]);
+          setFormData({
+            title: parsedData.title || "",
+            note: parsedData.note || "",
+            date: parsedData.date
+              ? new Date(parsedData.date).toISOString().split("T")[0]
+              : "",
+            total_cost: parsedData.total_cost
+              ? parsedData.total_cost.toString()
+              : "",
+          });
+          console.log("parsedData", parsedData);
+        }
+      } catch (err) {
+        console.error("Error parsing data:", err);
+      }
+    }
+  }, [aiResponse]);
 
   const handleAddCategory = async () => {
     if (!newCategoryName.trim()) {
@@ -222,19 +278,34 @@ export default function Manual() {
         .eq("user_id", userData.user.id)
         .single();
       if (profileError) throw profileError;
-
       if (
-        profileData?.["accounts-and-cards"] &&
-        newAccountName in profileData["accounts-and-cards"]
+        profileData &&
+        typeof profileData === "object" &&
+        "accounts-and-cards" in profileData &&
+        Object.hasOwn(
+          profileData["accounts-and-cards"] as Record<string, string[]>,
+          newAccountName
+        )
       ) {
         Alert.alert("Error", "Account already exists");
         return;
       }
 
-      const updatedAccounts = {
-        ...profileData?.["accounts-and-cards"],
-        [newAccountName]: [],
-      };
+      const updatedAccounts: Record<string, string[]> = {};
+
+      if (
+        profileData &&
+        typeof profileData === "object" &&
+        "accounts-and-cards" in profileData
+      ) {
+        const accountsAndCards = profileData["accounts-and-cards"] as Record<
+          string,
+          string[]
+        >;
+        Object.assign(updatedAccounts, accountsAndCards);
+      }
+
+      updatedAccounts[newAccountName] = [];
 
       const { error: updateError } = await supabase
         .from("profiles")
@@ -242,7 +313,7 @@ export default function Manual() {
         .eq("user_id", userData.user.id);
       if (updateError) throw updateError;
 
-      setAccounts(updatedAccounts);
+      setAccounts(updatedAccounts as Record<string, string[]>);
       setNewAccountName("");
       setIsAddAccountModalVisible(false);
       Alert.alert("Success", "Account added successfully");
@@ -251,33 +322,6 @@ export default function Manual() {
       Alert.alert("Error", "Failed to add account");
     }
   };
-
-  useEffect(() => {
-    if (aiResponse) {
-      try {
-        const outerParsed = JSON.parse(aiResponse as string);
-        const jsonMatch = outerParsed.response.match(
-          /```json\n([\s\S]*?)\n```/
-        );
-        if (jsonMatch && jsonMatch[1]) {
-          const parsedData = JSON.parse(jsonMatch[1]);
-          setFormData({
-            title: parsedData.title || "",
-            note: parsedData.note || "",
-            date: parsedData.date
-              ? new Date(parsedData.date).toISOString().split("T")[0]
-              : "",
-            total_cost: parsedData.total_cost
-              ? parsedData.total_cost.toString()
-              : "",
-          });
-          console.log("parsedData", parsedData);
-        }
-      } catch (err) {
-        console.error("Error parsing data:", err);
-      }
-    }
-  }, [aiResponse]);
 
   const handleMainCategoryPress = (category: string) => {
     if (selectedMainCategory === category) {
@@ -309,6 +353,27 @@ export default function Manual() {
   // Save function to update receipts and profiles
   const handleSave = async () => {
     try {
+      setIsSaving(true);
+
+      // Validate required fields
+      if (!formData.title.trim()) {
+        Alert.alert("Error", "Title is required");
+        setIsSaving(false);
+        return;
+      }
+
+      if (!formData.date) {
+        Alert.alert("Error", "Date is required");
+        setIsSaving(false);
+        return;
+      }
+
+      if (!formData.total_cost.trim()) {
+        Alert.alert("Error", "Total cost is required");
+        setIsSaving(false);
+        return;
+      }
+
       // Get current user
       const { data: userData, error: userError } =
         await supabase.auth.getUser();
@@ -316,7 +381,8 @@ export default function Manual() {
       if (!userData?.user) throw new Error("No user logged in");
 
       // Combine the selected date with the current time
-      let updatedDate = new Date(formData.date);
+      const [year, month, day] = formData.date.split("-").map(Number);
+      let updatedDate = new Date(year, month - 1, day); // months are 0-indexed in JS
       const now = new Date();
       updatedDate.setHours(
         now.getHours(),
@@ -325,57 +391,239 @@ export default function Manual() {
         now.getMilliseconds()
       );
       console.log("updatedDate", updatedDate);
-      console.log("receiptId", receiptId);
 
       const computedRepeatFrequency = `${frequencyNumber} ${frequencyUnit} until ${untilDate}`;
+      console.log("computedRepeatFrequency", computedRepeatFrequency);
+
+      // Calculate next_run date
+      const nextRunDate = new Date(updatedDate);
+      if (frequencyUnit.toLowerCase() === "month") {
+        nextRunDate.setMonth(nextRunDate.getMonth() + Number(frequencyNumber));
+      } else if (frequencyUnit.toLowerCase() === "year") {
+        nextRunDate.setFullYear(
+          nextRunDate.getFullYear() + Number(frequencyNumber)
+        );
+      } else if (frequencyUnit.toLowerCase() === "week") {
+        nextRunDate.setDate(
+          nextRunDate.getDate() + Number(frequencyNumber) * 7
+        );
+      } else if (frequencyUnit.toLowerCase() === "day") {
+        nextRunDate.setDate(nextRunDate.getDate() + Number(frequencyNumber));
+      }
+
+      // Calculate end_date
+      let endDate;
+      if (untilDate === "Forever") {
+        endDate = new Date("2300-01-01");
+      } else {
+        const [month, day, year] = untilDate.split("/");
+        endDate = new Date(Number(year), Number(month) - 1, Number(day)); // month is 0-based
+        const lastRunTime = new Date(updatedDate);
+        endDate.setHours(lastRunTime.getHours());
+        endDate.setMinutes(lastRunTime.getMinutes());
+        endDate.setSeconds(lastRunTime.getSeconds());
+        endDate.setMilliseconds(lastRunTime.getMilliseconds());
+      }
+
+      // Check if end_date is before next_run
+      if (isRepeating && endDate < nextRunDate) {
+        setIsSaving(false);
+        Alert.alert(
+          "Warning",
+          "The end date is before the next subscription run. This means the subscription will not occur again. Do you want to continue anyway?",
+          [
+            {
+              text: "Go Back",
+              style: "cancel",
+              onPress: () => {
+                // Do nothing, just go back to the form
+              },
+            },
+            {
+              text: "Continue Anyway",
+              onPress: () => {
+                // Continue with saving
+                saveReceiptAndSubscription(
+                  userData.user.id,
+                  updatedDate,
+                  nextRunDate,
+                  endDate
+                );
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      // If we get here, either the end_date is after next_run or it's not a repeating payment
+      await saveReceiptAndSubscription(
+        userData.user.id,
+        updatedDate,
+        nextRunDate,
+        endDate
+      );
+    } catch (error) {
+      console.error("Error saving receipt:", error);
+      Alert.alert("Error", "Failed to save receipt");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Helper function to save receipt and subscription
+  const saveReceiptAndSubscription = async (
+    userId: string,
+    updatedDate: Date,
+    nextRunDate: Date,
+    endDate: Date
+  ) => {
+    try {
+      // Validate and format total cost
+      let formattedTotalCost;
+      try {
+        // Only allow numbers and decimal point
+        const numericValue = formData.total_cost.replace(/[^0-9.]/g, "");
+        // Ensure only one decimal point
+        const parts = numericValue.split(".");
+        const formattedValue =
+          parts.length > 2
+            ? parts[0] + "." + parts.slice(1).join("")
+            : numericValue;
+
+        // Check if it's a valid number
+        const parsedValue = parseFloat(formattedValue);
+        if (isNaN(parsedValue)) {
+          Alert.alert("Error", "Total cost must be a valid number");
+          return;
+        }
+
+        formattedTotalCost = Number(parsedValue.toFixed(2));
+      } catch (error) {
+        console.error("Error formatting total cost:", error);
+        Alert.alert("Error", "Total cost must be a valid number");
+        return;
+      }
 
       // Update receipts database (assuming table "receipts")
-      const { error: receiptsError } = await supabase
+      const { data: receiptData, error: receiptsError } = await supabase
         .from("receipts")
         .update({
           title: formData.title,
           note: formData.note,
           date: updatedDate.toISOString(),
-          total_cost: Number(formData.total_cost),
+          total_cost: formattedTotalCost,
           category: selectedMainCategory || "",
           subcategory: selectedSubCategory || "",
           account: selectedAccount,
           repeating: isRepeating,
-          repeat_frequency: isRepeating ? computedRepeatFrequency : null,
           completed: true,
         })
-        .eq("id", receiptId);
-
+        .eq("id", receiptId)
+        .select();
       if (receiptsError) throw receiptsError;
 
-      // Now update the profiles table subscriptions (assumed JSON type)
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("subscriptions")
-        .eq("user_id", userData.user.id)
-        .single();
-      if (profileError) throw profileError;
+      console.log("untilDate:", untilDate);
+      console.log("isRepeating:", isRepeating);
 
-      const existingSubscriptions = profileData?.subscriptions || {};
-      const updatedSubscriptions = {
-        ...existingSubscriptions,
-        [receiptId]: computedRepeatFrequency,
-      };
+      // If this is a repeating payment, create or update the subscription
+      if (isRepeating) {
+        // Check if a subscription already exists for this receipt
+        const { data: existingSubscription, error: subscriptionCheckError } =
+          await supabase
+            .from("subscriptions")
+            .select("*")
+            .eq("receipt_id", receiptId)
+            .single();
 
-      const { error: updateProfileError } = await supabase
-        .from("profiles")
-        .update({ subscriptions: updatedSubscriptions })
-        .eq("user_id", userData.user.id);
-      if (updateProfileError) throw updateProfileError;
+        if (
+          subscriptionCheckError &&
+          subscriptionCheckError.code !== "PGRST116"
+        ) {
+          // PGRST116 means no rows returned, which is fine
+          throw subscriptionCheckError;
+        }
 
-      router.push({
-        pathname: "/(tabs)",
-      });
+        if (existingSubscription) {
+          // Update existing subscription
+          const { error: updateSubscriptionError } = await supabase
+            .from("subscriptions")
+            .update({
+              repeating_month:
+                frequencyUnit.toLowerCase() === "month"
+                  ? Number(frequencyNumber)
+                  : 0,
+              repeating_year:
+                frequencyUnit.toLowerCase() === "year"
+                  ? Number(frequencyNumber)
+                  : 0,
+              repeating_week:
+                frequencyUnit.toLowerCase() === "week"
+                  ? Number(frequencyNumber)
+                  : 0,
+              repeating_day:
+                frequencyUnit.toLowerCase() === "day"
+                  ? Number(frequencyNumber)
+                  : 0,
+              end_date: endDate.toISOString(),
+              last_run: updatedDate.toISOString(),
+              next_run: nextRunDate.toISOString(),
+              active: true,
+            })
+            .eq("id", existingSubscription.id);
 
+          if (updateSubscriptionError) throw updateSubscriptionError;
+        } else {
+          // Create new subscription
+          const { error: createSubscriptionError } = await supabase
+            .from("subscriptions")
+            .insert({
+              user_id: userId,
+              receipt_id: receiptId,
+              repeating_month:
+                frequencyUnit.toLowerCase() === "month"
+                  ? Number(frequencyNumber)
+                  : 0,
+              repeating_year:
+                frequencyUnit.toLowerCase() === "year"
+                  ? Number(frequencyNumber)
+                  : 0,
+              repeating_week:
+                frequencyUnit.toLowerCase() === "week"
+                  ? Number(frequencyNumber)
+                  : 0,
+              repeating_day:
+                frequencyUnit.toLowerCase() === "day"
+                  ? Number(frequencyNumber)
+                  : 0,
+              end_date: endDate.toISOString(),
+              last_run: updatedDate.toISOString(),
+              next_run: nextRunDate.toISOString(),
+              active: true,
+            });
+
+          if (createSubscriptionError) throw createSubscriptionError;
+        }
+      } else {
+        // If not repeating, make sure any existing subscription is deactivated
+        const { error: deactivateError } = await supabase
+          .from("subscriptions")
+          .update({ active: false })
+          .eq("receipt_id", receiptId);
+
+        if (deactivateError && deactivateError.code !== "PGRST116") {
+          // PGRST116 means no rows returned, which is fine
+          console.error("Error deactivating subscription:", deactivateError);
+        }
+      }
+
+      router.push({ pathname: "/(tabs)" });
       Alert.alert("Success", "Receipt saved successfully");
     } catch (error) {
       console.error("Error saving receipt:", error);
       Alert.alert("Error", "Failed to save receipt");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -389,19 +637,24 @@ export default function Manual() {
           paddingBottom: 120, // Extra space so content isn't hidden behind the fixed button
         }}
       >
-        <View className="justify-center items-center mb-6">
-          <Text className="text-xl font-bold text-black">Manual Entry</Text>
+        <View className="flex-row items-center justify-between w-full mb-6">
+          <View className="flex-row items-center">
+            <Pressable onPress={() => router.back()} className="mr-2">
+              <AntDesign name="arrowleft" size={24} color="black" />
+            </Pressable>
+            <Text className="text-xl font-bold text-black">Camera Entry</Text>
+          </View>
         </View>
 
         <View className="space-y-4 flex-1">
           {/* Title */}
           <View>
             <Text className="text-sm font-medium text-gray-700 mb-1">
-              Title
+              Title <Text className="text-red-500">*</Text>
             </Text>
             <TextInput
               className="w-full border border-gray-300 rounded-md p-2 text-black bg-white"
-              value={formData.title + " receipt"}
+              value={formData.title}
               onChangeText={(text) =>
                 setFormData((prev) => ({ ...prev, title: text }))
               }
@@ -410,7 +663,7 @@ export default function Manual() {
             />
           </View>
 
-          {/* Note (without fixed height) */}
+          {/* Note */}
           <View>
             <Text className="text-sm font-medium text-gray-700 mb-1">Note</Text>
             <View
@@ -433,35 +686,63 @@ export default function Manual() {
             </View>
           </View>
 
-          {/* Date */}
+          {/* Date Field: Pop-up Date Picker */}
           <View>
-            <Text className="text-sm font-medium text-gray-700 mb-1">Date</Text>
-            <TextInput
-              className="w-full border border-gray-300 rounded-md p-2 text-black bg-white"
-              value={formData.date}
-              onChangeText={(text) =>
-                setFormData((prev) => ({ ...prev, date: text }))
-              }
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor="#9CA3AF"
-            />
+            <Text className="text-sm font-medium text-gray-700 mb-1">
+              Date <Text className="text-red-500">*</Text>
+            </Text>
+            <TouchableOpacity
+              onPress={() => setIsReceiptDatePickerVisible(true)}
+              className="w-full border border-gray-300 rounded-md p-2 bg-white flex-row justify-between items-center"
+            >
+              <Text className="text-black">
+                {formData.date
+                  ? (() => {
+                      try {
+                        // Parse the date string manually to avoid timezone issues
+                        const [year, month, day] = formData.date
+                          .split("-")
+                          .map(Number);
+                        const dateObj = new Date(year, month - 1, day);
+                        return dateObj.toLocaleDateString("en-US", {
+                          weekday: "short",
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        });
+                      } catch (error) {
+                        console.error("Error formatting date:", error);
+                        return "Invalid Date";
+                      }
+                    })()
+                  : "Select Date"}
+              </Text>
+              <Text className="text-gray-500">📅</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Total Cost */}
           <View>
             <Text className="text-sm font-medium text-gray-700 mb-1">
-              Total Cost
+              Total Cost <Text className="text-red-500">*</Text>
             </Text>
-            <TextInput
-              className="w-full border border-gray-300 rounded-md p-2 text-black bg-white"
-              value={formData.total_cost}
-              onChangeText={(text) =>
-                setFormData((prev) => ({ ...prev, total_cost: text }))
-              }
-              placeholder="Enter total cost"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="numeric"
-            />
+            <View className="flex-row items-center border border-gray-300 rounded-md bg-white">
+              <Text className="text-black p-2">$</Text>
+              <TextInput
+                className="flex-1 p-2 text-black"
+                value={formData.total_cost}
+                onChangeText={(text) => {
+                  // Allow any input, we'll validate later
+                  setFormData((prev) => ({
+                    ...prev,
+                    total_cost: text,
+                  }));
+                }}
+                placeholder="0.00"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+              />
+            </View>
           </View>
 
           {/* Categories Section */}
@@ -478,15 +759,15 @@ export default function Manual() {
                 <View className="flex-row space-x-2">
                   <TouchableOpacity
                     onPress={() => setIsAddCategoryModalVisible(true)}
-                    className="px-4 py-2 rounded-full bg-gray-100"
+                    className="px-4 py-2 rounded-full bg-blue-100 border border-blue-300"
                   >
-                    <Text className="text-gray-500">+ Add new</Text>
+                    <Text className="text-blue-600">+ Add new</Text>
                   </TouchableOpacity>
                   {Object.keys(categories).map((mainCategory) => (
                     <TouchableOpacity
                       key={mainCategory}
                       onPress={() => handleMainCategoryPress(mainCategory)}
-                      className="px-4 py-2 rounded-full bg-gray-200"
+                      className="px-4 py-2 rounded-full bg-gray-200 border border-gray-300"
                     >
                       <Text className="text-gray-700">{mainCategory}</Text>
                     </TouchableOpacity>
@@ -500,10 +781,13 @@ export default function Manual() {
                     onPress={() =>
                       handleMainCategoryPress(selectedMainCategory)
                     }
-                    className="px-4 py-2 rounded-full bg-blue-500 w-auto"
+                    className="px-4 py-2 rounded-full bg-blue-500 w-auto flex-row items-center"
                     style={{ alignSelf: "flex-start" }}
                   >
-                    <Text className="text-white">{selectedMainCategory}</Text>
+                    <Text className="text-white mr-2">
+                      {selectedMainCategory}
+                    </Text>
+                    <Text className="text-white">✕</Text>
                   </TouchableOpacity>
                 </View>
                 <Text className="text-sm font-medium text-gray-700 mb-2">
@@ -514,15 +798,15 @@ export default function Manual() {
                     <View className="flex-row space-x-2">
                       <TouchableOpacity
                         onPress={() => setIsAddSubCategoryModalVisible(true)}
-                        className="px-4 py-2 rounded-full bg-gray-100"
+                        className="px-4 py-2 rounded-full bg-green-100 border border-green-300"
                       >
-                        <Text className="text-gray-500">+ Add new</Text>
+                        <Text className="text-green-600">+ Add new</Text>
                       </TouchableOpacity>
                       {categories[selectedMainCategory]?.map((subCategory) => (
                         <TouchableOpacity
                           key={subCategory}
                           onPress={() => handleSubCategoryPress(subCategory)}
-                          className="px-4 py-2 rounded-full bg-gray-100"
+                          className="px-4 py-2 rounded-full bg-gray-100 border border-gray-300"
                         >
                           <Text className="text-gray-700">{subCategory}</Text>
                         </TouchableOpacity>
@@ -534,11 +818,12 @@ export default function Manual() {
                         onPress={() =>
                           handleSubCategoryPress(selectedSubCategory)
                         }
-                        className="px-4 py-2 rounded-full bg-green-500"
+                        className="px-4 py-2 rounded-full bg-green-500 flex-row items-center"
                       >
-                        <Text className="text-white">
+                        <Text className="text-white mr-2">
                           {selectedSubCategory}
                         </Text>
+                        <Text className="text-white">✕</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -596,11 +881,49 @@ export default function Manual() {
               onChange={(event, selectedDate) => {
                 setIsDatePickerVisible(false);
                 if (selectedDate) {
-                  // Format date as mm/dd/yyyy
+                  // Format date as mm/dd/yyyy for repeating until date
                   const formattedDate = `${
                     selectedDate.getMonth() + 1
                   }/${selectedDate.getDate()}/${selectedDate.getFullYear()}`;
                   setUntilDate(formattedDate);
+                }
+              }}
+            />
+          )}
+
+          {/* Receipt Date Picker */}
+          {isReceiptDatePickerVisible && (
+            <DateTimePicker
+              value={formData.date ? new Date(formData.date) : new Date()}
+              mode="date"
+              display="default"
+              onChange={(event, selectedDate) => {
+                console.log("Date picker event:", event);
+                console.log("Selected date:", selectedDate);
+                console.log("Current formData:", formData);
+
+                // Always hide the picker first
+                setIsReceiptDatePickerVisible(false);
+
+                // Only update the date if a date was actually selected
+                if (selectedDate) {
+                  // Format date as YYYY-MM-DD for the receipt
+                  const year = selectedDate.getFullYear();
+                  const month = String(selectedDate.getMonth() + 1).padStart(
+                    2,
+                    "0"
+                  );
+                  const day = String(selectedDate.getDate()).padStart(2, "0");
+                  const formattedDate = `${year}-${month}-${day}`;
+
+                  console.log("Formatted date:", formattedDate);
+
+                  // Update the form data with the new date
+                  setFormData((prev) => {
+                    const newFormData = { ...prev, date: formattedDate };
+                    console.log("Updated formData:", newFormData);
+                    return newFormData;
+                  });
                 }
               }}
             />
@@ -611,46 +934,61 @@ export default function Manual() {
             <TouchableOpacity
               onPress={() => setIsRepeating(!isRepeating)}
               style={{ flexDirection: "row", alignItems: "center" }}
+              className="mb-2"
             >
               <View
                 style={{
-                  width: 20,
-                  height: 20,
-                  borderWidth: 1,
-                  borderColor: "gray",
-                  backgroundColor: isRepeating ? "blue" : "white",
+                  width: 24,
+                  height: 24,
+                  borderWidth: 2,
+                  borderColor: isRepeating ? "#3B82F6" : "gray",
+                  backgroundColor: isRepeating ? "#3B82F6" : "white",
                   marginRight: 8,
+                  borderRadius: 4,
+                  justifyContent: "center",
+                  alignItems: "center",
                 }}
-              />
-              <Text className="text-sm text-gray-700">Repeating</Text>
+              >
+                {isRepeating && <Text className="text-white">✓</Text>}
+              </View>
+              <Text className="text-sm font-medium text-gray-700">
+                Repeating Payment
+              </Text>
             </TouchableOpacity>
+
             {isRepeating && (
-              <View className="mt-2">
-                <Text className="text-sm text-gray-700">Repeat every</Text>
-                <View className="flex-row items-center space-x-2">
+              <View className="mt-2 p-3 bg-blue-50 rounded-md border border-blue-200">
+                <Text className="text-sm font-medium text-blue-800 mb-2">
+                  Repeat every
+                </Text>
+                <View className="flex-row items-center space-x-2 mb-3">
                   <TextInput
                     value={frequencyNumber}
                     onChangeText={setFrequencyNumber}
                     keyboardType="number-pad"
-                    className="border border-gray-300 rounded-md p-2 text-black bg-white w-16"
+                    className="border border-gray-300 rounded-md p-2 text-black bg-white w-16 text-center"
                     placeholder="1"
                   />
                   <TouchableOpacity
                     onPress={() => setIsUnitModalVisible(true)}
-                    className="px-4 py-2 rounded-md bg-gray-200"
+                    className="px-4 py-2 rounded-md bg-white border border-gray-300"
                   >
                     <Text className="text-gray-700 capitalize">
                       {frequencyUnit}
                     </Text>
                   </TouchableOpacity>
-                  <Text className="text-sm text-gray-700">until</Text>
-                  <TouchableOpacity
-                    onPress={() => setIsDatePickerVisible(true)}
-                    className="px-4 py-2 rounded-md bg-gray-200"
-                  >
-                    <Text className="text-gray-700">{untilDate}</Text>
-                  </TouchableOpacity>
                 </View>
+
+                <Text className="text-sm font-medium text-blue-800 mb-2">
+                  Until
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setIsDatePickerVisible(true)}
+                  className="px-4 py-2 rounded-md bg-white border border-gray-300 flex-row justify-between items-center"
+                >
+                  <Text className="text-gray-700">{untilDate}</Text>
+                  <Text className="text-gray-500">📅</Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -661,9 +999,19 @@ export default function Manual() {
       <View className="absolute bottom-0 left-0 right-0 p-4 bg-white">
         <TouchableOpacity
           onPress={handleSave}
-          className="px-6 py-4 rounded-md bg-green-500"
+          disabled={isSaving}
+          className={`px-6 py-4 rounded-md ${
+            isSaving ? "bg-gray-400" : "bg-green-500"
+          }`}
         >
-          <Text className="text-white text-center text-lg">Save</Text>
+          {isSaving ? (
+            <View className="flex-row justify-center items-center">
+              <Text className="text-white mr-2">Saving...</Text>
+              <View className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></View>
+            </View>
+          ) : (
+            <Text className="text-white text-center text-lg">Save</Text>
+          )}
         </TouchableOpacity>
       </View>
 

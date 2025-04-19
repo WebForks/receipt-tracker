@@ -294,7 +294,8 @@ export default function Manual() {
       if (!userData?.user) throw new Error("No user logged in");
 
       // Combine the selected date with the current time
-      let updatedDate = new Date(formData.date);
+      const [year, month, day] = formData.date.split("-").map(Number);
+      let updatedDate = new Date(year, month - 1, day); // months are 0-indexed in JS
       const now = new Date();
       updatedDate.setHours(
         now.getHours(),
@@ -305,22 +306,107 @@ export default function Manual() {
       console.log("updatedDate", updatedDate);
 
       const computedRepeatFrequency = `${frequencyNumber} ${frequencyUnit} until ${untilDate}`;
+      console.log("computedRepeatFrequency", computedRepeatFrequency);
 
       // Insert new receipt record into the database including user_id
-      const { error: receiptsError } = await supabase.from("receipts").insert({
-        user_id: userData.user.id,
-        title: formData.title,
-        note: formData.note,
-        date: updatedDate.toISOString(),
-        total_cost: Number(formData.total_cost),
-        category: selectedMainCategory || "",
-        subcategory: selectedSubCategory || "",
-        account: selectedAccount,
-        repeating: isRepeating,
-        repeat_frequency: isRepeating ? computedRepeatFrequency : null,
-        completed: true,
-      });
+      const { data: receiptData, error: receiptsError } = await supabase
+        .from("receipts")
+        .insert({
+          user_id: userData.user.id,
+          title: formData.title,
+          note: formData.note,
+          date: updatedDate.toISOString(),
+          total_cost: Number(formData.total_cost),
+          category: selectedMainCategory || "",
+          subcategory: selectedSubCategory || "",
+          account: selectedAccount,
+          repeating: isRepeating,
+          completed: true,
+        })
+        .select();
       if (receiptsError) throw receiptsError;
+
+      console.log("untilDate:", untilDate); // Add this line
+      console.log("isRepeating:", isRepeating); // Add this line
+
+      const { data: subscriptionsData, error: subscriptionsError } =
+        await supabase
+          .from("subscriptions")
+          .insert({
+            user_id: userData.user.id,
+            receipt_id: (
+              await supabase
+                .from("receipts")
+                .select("id")
+                .eq("user_id", userData.user.id)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .single()
+            ).data?.id,
+            repeating_month:
+              frequencyUnit.toLowerCase() === "month"
+                ? Number(frequencyNumber)
+                : 0,
+            repeating_year:
+              frequencyUnit.toLowerCase() === "year"
+                ? Number(frequencyNumber)
+                : 0,
+            repeating_week:
+              frequencyUnit.toLowerCase() === "week"
+                ? Number(frequencyNumber)
+                : 0,
+            repeating_day:
+              frequencyUnit.toLowerCase() === "day"
+                ? Number(frequencyNumber)
+                : 0,
+            end_date:
+              untilDate === "Forever"
+                ? new Date("2300-01-01").toISOString()
+                : (() => {
+                    const [month, day, year] = untilDate.split("/");
+                    const endDate = new Date(year, month - 1, day); // month is 0-based
+                    console.log("endDate", endDate);
+                    const lastRunTime = new Date(updatedDate);
+                    endDate.setHours(lastRunTime.getHours());
+                    endDate.setMinutes(lastRunTime.getMinutes());
+                    endDate.setSeconds(lastRunTime.getSeconds());
+                    endDate.setMilliseconds(lastRunTime.getMilliseconds());
+                    return endDate.toISOString();
+                  })(),
+            last_run: updatedDate.toISOString(),
+            next_run: (() => {
+              const nextRunDate = new Date(updatedDate);
+              if (frequencyUnit.toLowerCase() === "month") {
+                nextRunDate.setMonth(
+                  nextRunDate.getMonth() + Number(frequencyNumber)
+                );
+              } else if (frequencyUnit.toLowerCase() === "year") {
+                nextRunDate.setFullYear(
+                  nextRunDate.getFullYear() + Number(frequencyNumber)
+                );
+              } else if (frequencyUnit.toLowerCase() === "week") {
+                nextRunDate.setDate(
+                  nextRunDate.getDate() + Number(frequencyNumber) * 7
+                );
+              } else if (frequencyUnit.toLowerCase() === "day") {
+                nextRunDate.setDate(
+                  nextRunDate.getDate() + Number(frequencyNumber)
+                );
+              }
+              return nextRunDate.toISOString();
+            })(),
+            active: true,
+          })
+          .select();
+      if (subscriptionsError) throw subscriptionsError;
+      console.log("subscriptionsData", subscriptionsData);
+
+      // Link the subscription ID to the receipt
+      const { error: receiptUpdateError } = await supabase
+        .from("receipts")
+        .update({ subscription_id: subscriptionsData[0].id })
+        .eq("id", receiptData[0].id);
+      if (receiptUpdateError) throw receiptUpdateError;
 
       router.push({ pathname: "/(tabs)" });
       Alert.alert("Success", "Receipt saved successfully");

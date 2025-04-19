@@ -27,9 +27,13 @@ export default function Index() {
   const [isReceiptsLoading, setIsReceiptsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const receiptsLimit = 20;
+  const [sortBy, setSortBy] = useState<"date" | "date_added_to_db">("date");
 
   // State to control the drop-up menu visibility.
   const [showDropUp, setShowDropUp] = useState(false);
+
+  // State to control the sort dropdown visibility.
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
 
   useEffect(() => {
     checkSession();
@@ -60,19 +64,21 @@ export default function Index() {
     setIsLoading(false);
   }
 
-  async function fetchReceipts() {
+  async function fetchReceipts(forcedOffset?: number) {
     if (isReceiptsLoading) return; // Prevent duplicate calls
 
     setIsReceiptsLoading(true);
-    // Use the current number of receipts as the offset
-    const offset = receipts.length;
-
+    const offset = forcedOffset !== undefined ? forcedOffset : receipts.length;
+    console.log("sortBy fetchReceipts", sortBy);
+    console.log("offset before fetchReceipts", offset);
     const { data, error } = await supabase
       .from("receipts")
-      .select("title, total_cost, category, date")
+      .select("title, total_cost, category, date, date_added_to_db")
       .eq("completed", true)
-      .order("date", { ascending: false })
+      .order(sortBy, { ascending: false })
       .range(offset, offset + receiptsLimit - 1);
+    console.log("data fetchReceipts", data);
+    console.log("offset after fetchReceipts", offset);
 
     if (error) {
       console.error("Error fetching receipts:", error);
@@ -86,6 +92,15 @@ export default function Index() {
     }
     setIsReceiptsLoading(false);
   }
+
+  // Add useEffect to refetch receipts when sortBy changes
+  useEffect(() => {
+    if (isSignedIn) {
+      setReceipts([]); // Clear existing receipts
+      setHasMore(true); // Reset hasMore
+      fetchReceipts(0); // Fetch with new sort, forcing offset to 0
+    }
+  }, [sortBy]);
 
   if (isLoading) {
     return (
@@ -115,6 +130,42 @@ export default function Index() {
         <Text className="text-xl font-bold mb-4">
           Welcome to your Dashboard!
         </Text>
+
+        {/* Sort Dropdown */}
+        <View className="mb-4">
+          <TouchableOpacity
+            onPress={() => setShowSortDropdown(!showSortDropdown)}
+            className="bg-gray-100 px-4 py-2 rounded-lg flex-row justify-between items-center"
+          >
+            <Text className="text-gray-700">
+              Sort by: {sortBy === "date" ? "Receipt Date" : "Date Added"}
+            </Text>
+            <Text className="text-gray-500">▼</Text>
+          </TouchableOpacity>
+
+          {showSortDropdown && (
+            <View className="absolute top-12 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+              <TouchableOpacity
+                onPress={() => {
+                  setSortBy("date");
+                  setShowSortDropdown(false);
+                }}
+                className="px-4 py-3 border-b border-gray-100"
+              >
+                <Text className="text-gray-700">Receipt Date</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setSortBy("date_added_to_db");
+                  setShowSortDropdown(false);
+                }}
+                className="px-4 py-3"
+              >
+                <Text className="text-gray-700">Date Added</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
         {receipts.map((receipt, index) => {
           // Create a Date object and format it to "Month Day, Year"
@@ -157,7 +208,7 @@ export default function Index() {
 
         {hasMore && !isReceiptsLoading && (
           <TouchableOpacity
-            onPress={fetchReceipts}
+            onPress={() => fetchReceipts()}
             className="bg-blue-500 px-4 py-3 rounded-lg mb-6"
           >
             <Text className="text-white text-center">Load More</Text>

@@ -74,6 +74,11 @@ export default function Manual() {
   // Add this state
   const [isSaving, setIsSaving] = useState(false);
 
+  // Add useEffect to monitor formData.date changes
+  useEffect(() => {
+    console.log("formData.date changed:", formData.date);
+  }, [formData.date]);
+
   // Fetch categories and accounts from profiles table
   useEffect(() => {
     async function fetchData() {
@@ -541,12 +546,25 @@ export default function Manual() {
             >
               <Text className="text-black">
                 {formData.date
-                  ? new Date(formData.date).toLocaleDateString("en-US", {
-                      weekday: "short",
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })
+                  ? (() => {
+                      console.log("Displaying date:", formData.date);
+                      try {
+                        // Parse the date string manually to avoid timezone issues
+                        const [year, month, day] = formData.date
+                          .split("-")
+                          .map(Number);
+                        const dateObj = new Date(year, month - 1, day);
+                        return dateObj.toLocaleDateString("en-US", {
+                          weekday: "short",
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        });
+                      } catch (error) {
+                        console.error("Error formatting date:", error);
+                        return "Invalid Date";
+                      }
+                    })()
                   : "Select Date"}
               </Text>
               <Text className="text-gray-500">📅</Text>
@@ -740,13 +758,32 @@ export default function Manual() {
               mode="date"
               display="default"
               onChange={(event, selectedDate) => {
+                console.log("Date picker event:", event);
+                console.log("Selected date:", selectedDate);
+                console.log("Current formData:", formData);
+
+                // Always hide the picker first
                 setIsReceiptDatePickerVisible(false);
+
+                // Only update the date if a date was actually selected
                 if (selectedDate) {
                   // Format date as YYYY-MM-DD for the receipt
-                  const formattedDate = selectedDate
-                    .toISOString()
-                    .split("T")[0];
-                  setFormData((prev) => ({ ...prev, date: formattedDate }));
+                  const year = selectedDate.getFullYear();
+                  const month = String(selectedDate.getMonth() + 1).padStart(
+                    2,
+                    "0"
+                  );
+                  const day = String(selectedDate.getDate()).padStart(2, "0");
+                  const formattedDate = `${year}-${month}-${day}`;
+
+                  console.log("Formatted date:", formattedDate);
+
+                  // Update the form data with the new date
+                  setFormData((prev) => {
+                    const newFormData = { ...prev, date: formattedDate };
+                    console.log("Updated formData:", newFormData);
+                    return newFormData;
+                  });
                 }
               }}
             />

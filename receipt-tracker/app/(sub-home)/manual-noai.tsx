@@ -8,16 +8,13 @@ import {
   TouchableOpacity,
   Modal,
   Alert,
-  Platform,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import "~/global.css";
 import { supabase } from "~/utils/supabase";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 
-// Define types for profile data
 interface ProfileData {
   categories?: Record<string, string[]>;
   "accounts-and-cards"?: Record<string, string[]>;
@@ -106,8 +103,18 @@ export default function Manual() {
         }
         console.log("profileData", profileData);
         // Set categories and accounts if they exist, otherwise use empty objects
-        setCategories(profileData?.categories || {});
-        setAccounts(profileData?.["accounts-and-cards"] || {});
+        if ("categories" in profileData) {
+          setCategories(profileData.categories as Record<string, string[]>);
+        } else {
+          setCategories({});
+        }
+        if ("accounts-and-cards" in profileData) {
+          setAccounts(
+            profileData["accounts-and-cards"] as Record<string, string[]>
+          );
+        } else {
+          setAccounts({});
+        }
       } catch (err) {
         console.error("Error in fetchData:", err);
       }
@@ -237,19 +244,34 @@ export default function Manual() {
         .eq("user_id", userData.user.id)
         .single();
       if (profileError) throw profileError;
-
       if (
-        profileData?.["accounts-and-cards"] &&
-        newAccountName in profileData["accounts-and-cards"]
+        profileData &&
+        typeof profileData === "object" &&
+        "accounts-and-cards" in profileData &&
+        Object.hasOwn(
+          profileData["accounts-and-cards"] as Record<string, string[]>,
+          newAccountName
+        )
       ) {
         Alert.alert("Error", "Account already exists");
         return;
       }
 
-      const updatedAccounts = {
-        ...profileData?.["accounts-and-cards"],
-        [newAccountName]: [],
-      };
+      const updatedAccounts: Record<string, string[]> = {};
+
+      if (
+        profileData &&
+        typeof profileData === "object" &&
+        "accounts-and-cards" in profileData
+      ) {
+        const accountsAndCards = profileData["accounts-and-cards"] as Record<
+          string,
+          string[]
+        >;
+        Object.assign(updatedAccounts, accountsAndCards);
+      }
+
+      updatedAccounts[newAccountName] = [];
 
       const { error: updateError } = await supabase
         .from("profiles")
@@ -257,7 +279,7 @@ export default function Manual() {
         .eq("user_id", userData.user.id);
       if (updateError) throw updateError;
 
-      setAccounts(updatedAccounts);
+      setAccounts(updatedAccounts as Record<string, string[]>);
       setNewAccountName("");
       setIsAddAccountModalVisible(false);
       Alert.alert("Success", "Account added successfully");
@@ -348,7 +370,7 @@ export default function Manual() {
           title: formData.title,
           note: formData.note,
           date: updatedDate.toISOString(),
-          total_cost: Number(formData.total_cost),
+          total_cost: Number(parseFloat(formData.total_cost).toFixed(2)),
           category: selectedMainCategory || "",
           subcategory: selectedSubCategory || "",
           account: selectedAccount,
@@ -396,7 +418,11 @@ export default function Manual() {
                 ? new Date("2300-01-01").toISOString()
                 : (() => {
                     const [month, day, year] = untilDate.split("/");
-                    const endDate = new Date(year, month - 1, day); // month is 0-based
+                    const endDate = new Date(
+                      Number(year),
+                      Number(month) - 1,
+                      Number(day)
+                    ); // month is 0-based
                     console.log("endDate", endDate);
                     const lastRunTime = new Date(updatedDate);
                     endDate.setHours(lastRunTime.getHours());

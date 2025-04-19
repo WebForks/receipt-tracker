@@ -73,7 +73,6 @@ export default function Index() {
       .eq("completed", true)
       .order("date", { ascending: false })
       .range(offset, offset + receiptsLimit - 1);
-    console.log("data", data);
 
     if (error) {
       console.error("Error fetching receipts:", error);

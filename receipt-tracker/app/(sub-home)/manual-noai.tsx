@@ -566,7 +566,17 @@ export default function Manual() {
         }}
       >
         <View className="justify-center items-center mb-6">
-          <Text className="text-xl font-bold text-black">Manual Entry</Text>
+          <View className="flex-row items-center w-full">
+            <TouchableOpacity
+              onPress={() => router.back()}
+              className="absolute left-0 z-10 p-2"
+            >
+              <Text className="text-black text-2xl font-bold">←</Text>
+            </TouchableOpacity>
+            <Text className="text-xl font-bold text-black flex-1 text-center">
+              Manual Entry
+            </Text>
+          </View>
         </View>
 
         <View className="space-y-4 flex-1">

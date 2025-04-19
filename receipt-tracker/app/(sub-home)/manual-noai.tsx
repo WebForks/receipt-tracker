@@ -491,6 +491,7 @@ export default function Manual() {
           account: selectedAccount,
           repeating: isRepeating,
           completed: true,
+          date_added_to_db: new Date().toISOString(),
         })
         .select();
       if (receiptsError) throw receiptsError;

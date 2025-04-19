@@ -518,6 +518,7 @@ export default function Manual() {
           account: selectedAccount,
           repeating: isRepeating,
           completed: true,
+          date_added_to_db: new Date().toISOString(),
         })
         .eq("id", receiptId)
         .select();
@@ -575,34 +576,51 @@ export default function Manual() {
           if (updateSubscriptionError) throw updateSubscriptionError;
         } else {
           // Create new subscription
-          const { error: createSubscriptionError } = await supabase
-            .from("subscriptions")
-            .insert({
-              user_id: userId,
-              receipt_id: receiptId,
-              repeating_month:
-                frequencyUnit.toLowerCase() === "month"
-                  ? Number(frequencyNumber)
-                  : 0,
-              repeating_year:
-                frequencyUnit.toLowerCase() === "year"
-                  ? Number(frequencyNumber)
-                  : 0,
-              repeating_week:
-                frequencyUnit.toLowerCase() === "week"
-                  ? Number(frequencyNumber)
-                  : 0,
-              repeating_day:
-                frequencyUnit.toLowerCase() === "day"
-                  ? Number(frequencyNumber)
-                  : 0,
-              end_date: endDate.toISOString(),
-              last_run: updatedDate.toISOString(),
-              next_run: nextRunDate.toISOString(),
-              active: true,
-            });
+          const { data: newSubscription, error: createSubscriptionError } =
+            await supabase
+              .from("subscriptions")
+              .insert({
+                user_id: userId,
+                receipt_id: receiptId,
+                repeating_month:
+                  frequencyUnit.toLowerCase() === "month"
+                    ? Number(frequencyNumber)
+                    : 0,
+                repeating_year:
+                  frequencyUnit.toLowerCase() === "year"
+                    ? Number(frequencyNumber)
+                    : 0,
+                repeating_week:
+                  frequencyUnit.toLowerCase() === "week"
+                    ? Number(frequencyNumber)
+                    : 0,
+                repeating_day:
+                  frequencyUnit.toLowerCase() === "day"
+                    ? Number(frequencyNumber)
+                    : 0,
+                end_date: endDate.toISOString(),
+                last_run: updatedDate.toISOString(),
+                next_run: nextRunDate.toISOString(),
+                active: true,
+              })
+              .select();
 
           if (createSubscriptionError) throw createSubscriptionError;
+
+          // Update the receipt with the subscription ID if it was created
+          if (newSubscription && newSubscription.length > 0) {
+            const { error: updateReceiptError } = await supabase
+              .from("receipts")
+              .update({ subscription_id: newSubscription[0].id })
+              .eq("id", receiptId);
+
+            if (updateReceiptError) {
+              console.error(
+                "Error updating receipt with subscription ID:",
+                updateReceiptError
+              );
+            }
+          }
         }
       } else {
         // If not repeating, make sure any existing subscription is deactivated
@@ -642,8 +660,10 @@ export default function Manual() {
             <Pressable onPress={() => router.back()} className="mr-2">
               <AntDesign name="arrowleft" size={24} color="black" />
             </Pressable>
-            <Text className="text-xl font-bold text-black">Camera Entry</Text>
           </View>
+          <Text className="text-xl font-bold text-black">Camera Entry</Text>
+          {/* Empty view for balance */}
+          <View style={{ width: 24 }}></View>
         </View>
 
         <View className="space-y-4 flex-1">

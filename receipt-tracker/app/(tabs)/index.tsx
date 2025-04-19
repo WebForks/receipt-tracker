@@ -16,7 +16,14 @@ export default function Index() {
   const [isSignedIn, setIsSignedIn] = useState(false);
 
   // State for receipts data and pagination
-  const [receipts, setReceipts] = useState([]);
+  const [receipts, setReceipts] = useState<
+    Array<{
+      title: string;
+      total_cost: number;
+      category?: string;
+      date: string;
+    }>
+  >([]);
   const [isReceiptsLoading, setIsReceiptsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const receiptsLimit = 20;
@@ -66,6 +73,7 @@ export default function Index() {
       .eq("completed", true)
       .order("date", { ascending: false })
       .range(offset, offset + receiptsLimit - 1);
+    console.log("data", data);
 
     if (error) {
       console.error("Error fetching receipts:", error);

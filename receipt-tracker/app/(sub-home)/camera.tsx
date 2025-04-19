@@ -128,12 +128,12 @@ export default function App() {
         .insert([
           {
             user_id: user,
-            title: "New Receipt", // Replace with actual title
+            title: "", // Replace with actual title
             date: new Date().toISOString(),
-            note: "Added via app",
+            note: "",
             total_cost: 0, // Replace as needed
-            category: "Misc", // Replace as needed
-            subcategory: "General", // Replace as needed
+            category: "", // Replace as needed
+            subcategory: "", // Replace as needed
             repeating: false,
             account: "", // Replace as needed
             completed: false,
